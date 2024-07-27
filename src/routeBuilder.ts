@@ -1,7 +1,7 @@
 import { HandlerFunction, Parsed, ParserFunctions, Route } from "./route.js";
 import type { Method, Path } from "./router.js";
 
-export class RouteBuilderUnparsed<R extends Path, M extends Method> {
+export class RouteBuilderUnparsed<R extends Path, M extends Method | null> {
     constructor(
         private readonly backend: RouteBuilderUnparsedBackend<R, M>,
         private readonly route: R,
@@ -19,7 +19,10 @@ export class RouteBuilderUnparsed<R extends Path, M extends Method> {
     }
 }
 
-export class RouteBuilderUnparsedBackend<R extends Path, M extends Method> {
+export class RouteBuilderUnparsedBackend<
+    R extends Path,
+    M extends Method | null,
+> {
     routeBuilderParsedBackend: RouteBuilderParsedBackend<R, M, any> | undefined;
     handler: HandlerFunction<R, Parsed<R, {}>> | undefined;
 
@@ -58,7 +61,7 @@ export class RouteBuilderUnparsedBackend<R extends Path, M extends Method> {
 
 class RouteBuilderParsed<
     R extends Path,
-    M extends Method,
+    M extends Method | null,
     P extends ParserFunctions<R>,
 > {
     constructor(
@@ -72,7 +75,7 @@ class RouteBuilderParsed<
 
 class RouteBuilderParsedBackend<
     R extends Path,
-    M extends Method,
+    M extends Method | null,
     P extends ParserFunctions<R>,
 > {
     handler: HandlerFunction<R, Parsed<R, P>> | undefined;
@@ -80,7 +83,7 @@ class RouteBuilderParsedBackend<
     constructor(
         private readonly route: R,
         private readonly method: M,
-        private readonly parsers: P
+        readonly parsers: P
     ) {}
 
     build(): Route {
