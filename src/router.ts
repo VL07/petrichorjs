@@ -2,6 +2,8 @@ import { type ParserFunction, ParserFunctions, Route } from "./route.js";
 import {
     RouteBuilderUnparsed,
     RouteBuilderUnparsedBackend,
+    RouteBuilderUnparsedMethodWildcard,
+    RouteBuilderUnparsedMethodWildcardBackend,
 } from "./routeBuilder.js";
 // import { Server } from "./server.js";
 
@@ -93,35 +95,27 @@ class RouteGroup {
         return path.slice(1, i);
     }
 
-    private addRoute(
-        builder: RouteBuilderUnparsedBackend<Path, Method | null>
-    ): void {
-        if (builder.method === null) {
+    private addRoute(route: Route): void {
+        if (route.method === null) {
             if (this.routeMethodWildcard)
                 throw "Only one method wildcard route per path!";
 
-            const route = builder.build();
             this.routeMethodWildcard = route;
 
             return;
         }
 
-        let existingMethod = this.routes.get(builder.method);
+        let existingMethod = this.routes.get(route.method);
         if (existingMethod)
             throw "Only one route per path and method can be created!";
 
-        const route = builder.build();
-
-        this.routes.set(builder.method, route);
+        this.routes.set(route.method, route);
     }
 
-    makeRouteGroupsForPath(
-        path: Path,
-        builder: RouteBuilderUnparsedBackend<Path, Method | null>
-    ): void {
+    makeRouteGroupsForPath(path: Path, route: Route): void {
         const slug = this.getFirstSlugOfPath(path);
         if (slug === "") {
-            this.addRoute(builder);
+            this.addRoute(route);
         } else if (slug.startsWith(":")) {
             const isOptional = slug.endsWith("?");
             const dynamicSlugVariableName = slug.slice(
@@ -130,13 +124,13 @@ class RouteGroup {
             );
 
             let existingMethod =
-                builder.method && this.dynamicChildGroups.get(builder.method);
-            if (builder.method !== null && existingMethod === undefined) {
+                route.method && this.dynamicChildGroups.get(route.method);
+            if (route.method !== null && existingMethod === undefined) {
                 existingMethod = {
                     required: [],
                     optional: [],
                 };
-                this.dynamicChildGroups.set(builder.method, existingMethod);
+                this.dynamicChildGroups.set(route.method, existingMethod);
             }
 
             const dynamicChildRouteGroup = new RouteGroup(
@@ -144,15 +138,17 @@ class RouteGroup {
             );
 
             dynamicChildRouteGroup.makeRouteGroupsForPath(
-                `/${path.slice(slug.length + 2)}`,
-                builder
+                `/${route.path.slice(slug.length + 2)}`,
+                route
             );
 
-            const parsers = builder.routeBuilderParsedBackend
-                ?.parsers as Record<string, ParserFunction<string | undefined>>;
+            const parsers = route.parsers as Record<
+                string,
+                ParserFunction<string | undefined>
+            >;
             const dynamicRoute = {
                 dynamicSlugVariableName: dynamicSlugVariableName,
-                parser: parsers ? parsers[dynamicSlugVariableName] : undefined,
+                parser: parsers[dynamicSlugVariableName],
                 routeGroup: dynamicChildRouteGroup,
             } satisfies DynamicRoute;
 
@@ -176,19 +172,20 @@ class RouteGroup {
         } else if (slug === "*" || slug === "*?") {
             const isOptional = slug.endsWith("?");
             let existingMethod =
-                builder.method && this.wildcardChildRoutes.get(builder.method);
-            if (builder.method !== null && existingMethod === undefined) {
+                route.method && this.wildcardChildRoutes.get(route.method);
+            if (route.method !== null && existingMethod === undefined) {
                 existingMethod = {
                     required: undefined,
                     optional: undefined,
                 };
-                this.wildcardChildRoutes.set(builder.method, existingMethod);
+                this.wildcardChildRoutes.set(route.method, existingMethod);
             }
 
-            const parsers = builder.routeBuilderParsedBackend
-                ?.parsers as Record<string, ParserFunction<string | undefined>>;
-            const parser = parsers ? parsers.wildcard : undefined;
-            const route = builder.build();
+            const parsers = route.parsers as Record<
+                string,
+                ParserFunction<string | undefined>
+            >;
+            const parser = parsers.wildcard;
             if (existingMethod) {
                 if (isOptional) {
                     if (existingMethod.optional)
@@ -226,7 +223,7 @@ class RouteGroup {
                     };
                 }
             }
-        } else if (builder.method === null) {
+        } else if (route.method === null) {
             let existingRouteGroup =
                 this.staticChildGroupsMethodWildcard.get(slug);
             if (!existingRouteGroup) {
@@ -239,13 +236,13 @@ class RouteGroup {
 
             existingRouteGroup.makeRouteGroupsForPath(
                 `/${path.slice(slug.length + 2)}`,
-                builder
+                route
             );
         } else {
-            let existingMethod = this.staticChildGroups.get(builder.method);
+            let existingMethod = this.staticChildGroups.get(route.method);
             if (!existingMethod) {
                 existingMethod = new Map();
-                this.staticChildGroups.set(builder.method, existingMethod);
+                this.staticChildGroups.set(route.method, existingMethod);
             }
 
             let existingRouteGroup = existingMethod.get(slug);
@@ -256,7 +253,7 @@ class RouteGroup {
 
             existingRouteGroup.makeRouteGroupsForPath(
                 `/${path.slice(slug.length + 2)}`,
-                builder
+                route
             );
         }
     }
@@ -284,7 +281,7 @@ class RouteGroup {
                     const parsed = optionalDynamicRoute.parser
                         ? optionalDynamicRoute.parser(undefined)
                         : undefined;
-                    if (parsed === undefined) continue;
+                    if (parsed === null) continue;
 
                     const route =
                         optionalDynamicRoute.routeGroup.getRouteFromPath(
@@ -307,7 +304,7 @@ class RouteGroup {
                 const parsed = optionalWildcardRoute.parser
                     ? optionalWildcardRoute.parser(undefined)
                     : undefined;
-                if (parsed === undefined) return undefined;
+                if (parsed === null) return undefined;
 
                 return {
                     params: { wildcard: parsed },
@@ -370,7 +367,7 @@ class RouteGroup {
             const parsed = dynamicRouteGroup.parser
                 ? dynamicRouteGroup.parser(slug)
                 : slug;
-            if (parsed === undefined) continue;
+            if (parsed === null) continue;
 
             const route = dynamicRouteGroup.routeGroup.getRouteFromPath(
                 restPath,
@@ -386,7 +383,7 @@ class RouteGroup {
             const parsed = dynamicRouteGroup.parser
                 ? dynamicRouteGroup.parser(slug)
                 : slug;
-            if (parsed === undefined) continue;
+            if (parsed === null) continue;
 
             const route = dynamicRouteGroup.routeGroup.getRouteFromPath(
                 restPath,
@@ -441,59 +438,57 @@ class RouteGroup {
 }
 
 export class Router {
-    private readonly routeBuilders: RouteBuilderUnparsedBackend<
-        Path,
-        Method | null
-    >[] = [];
+    private readonly routeBuilders: (
+        | RouteBuilderUnparsedBackend<Path, Method[]>
+        | RouteBuilderUnparsedMethodWildcardBackend<Path>
+    )[] = [];
 
     constructor() {}
 
-    get<R extends Path>(route: R): RouteBuilderUnparsed<R, "GET"> {
+    get<R extends Path>(route: R): RouteBuilderUnparsed<R, ["GET"]> {
         return this.on("GET", route);
     }
 
-    post<R extends Path>(route: R): RouteBuilderUnparsed<R, "POST"> {
+    post<R extends Path>(route: R): RouteBuilderUnparsed<R, ["POST"]> {
         return this.on("POST", route);
     }
 
-    put<R extends Path>(route: R): RouteBuilderUnparsed<R, "PUT"> {
+    put<R extends Path>(route: R): RouteBuilderUnparsed<R, ["PUT"]> {
         return this.on("PUT", route);
     }
 
-    delete<R extends Path>(route: R): RouteBuilderUnparsed<R, "DELETE"> {
+    delete<R extends Path>(route: R): RouteBuilderUnparsed<R, ["DELETE"]> {
         return this.on("DELETE", route);
-
-        return new RouteBuilderUnparsed(builderBackend, route, "DELETE");
     }
 
     on<M extends Method, R extends Path>(
         method: M,
         route: R
-    ): RouteBuilderUnparsed<R, M> {
-        const builderBackend = new RouteBuilderUnparsedBackend<R, M>(
-            route,
-            method
-        );
+    ): RouteBuilderUnparsed<R, [M]> {
+        const builderBackend = new RouteBuilderUnparsedBackend<R, [M]>(route, [
+            method,
+        ]);
         this.routeBuilders.push(builderBackend);
 
-        return new RouteBuilderUnparsed(builderBackend, route, method);
+        return new RouteBuilderUnparsed(builderBackend, route, [method]);
     }
 
-    all<R extends Path>(route: R): RouteBuilderUnparsed<R, null> {
-        const builderBackend = new RouteBuilderUnparsedBackend<R, null>(
-            route,
-            null
+    all<R extends Path>(route: R): RouteBuilderUnparsedMethodWildcard<R> {
+        const builderBackend = new RouteBuilderUnparsedMethodWildcardBackend<R>(
+            route
         );
         this.routeBuilders.push(builderBackend);
 
-        return new RouteBuilderUnparsed(builderBackend, route, null);
+        return new RouteBuilderUnparsedMethodWildcard(builderBackend, route);
     }
 
     private buildRouteBuilders(): RouteGroup {
         const parentRouteGroup = new RouteGroup("/");
 
         for (const builder of this.routeBuilders) {
-            parentRouteGroup.makeRouteGroupsForPath(builder.route, builder);
+            for (const route of builder.build()) {
+                parentRouteGroup.makeRouteGroupsForPath(route.path, route);
+            }
         }
 
         console.log(parentRouteGroup);

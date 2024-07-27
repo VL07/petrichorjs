@@ -31,7 +31,7 @@ type StaticEndRoute<T extends Path> = T extends `/${string}` ? {} : {};
 
 export type Params<T extends Path> = DynamicOptionalWildcardRoute<T>;
 
-export type ParserFunction<T, R = unknown> = (param: T) => R | undefined;
+export type ParserFunction<T, R = unknown> = (param: T) => R | null;
 export type ParserFunctions<R extends Path> = Partial<{
     [K in keyof Params<R>]: ParserFunction<Params<R>[K]>;
 }>;
@@ -53,9 +53,9 @@ export type HandlerFunction<
 
 export class Route {
     constructor(
-        readonly route: Path,
+        readonly path: Path,
         readonly method: Method | null,
-        private parsers: ParserFunctions<Path>,
+        readonly parsers: ParserFunctions<Path>,
         private readonly handler: HandlerFunction<Path, any>
     ) {}
 
