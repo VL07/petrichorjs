@@ -1,7 +1,6 @@
 import { Router } from "./router.js";
 
 const router = new Router();
-console.log("here");
 // router.get("/").handle(() => {});
 // router.get("/:id").handle(() => {});
 // router.post("/:id?").handle(() => {});
@@ -10,22 +9,38 @@ console.log("here");
 // router.post("/*?").handle(() => {});
 // router.get("/users/:id/posts/:postId/*").handle(() => {});
 router
-    .get("/:a?")
+    .get("/:a/:b")
+    .get()
     .post()
     .parse({
-        a: (param) => {
-            if (param === "no") return null;
-            return param;
-        },
+        a: (param) => parseInt(param),
     })
-    .handle(() => {});
+    .handle((params) => {
+        params;
+    });
+
+const userGroup = router
+    .group("/users/:userId")
+    .parse({
+        userId: (param) => parseInt(param),
+    })
+    .handle();
+
+userGroup.get("/").handle((params) => {});
+userGroup
+    .get("/comments/:commentId")
+    .parse({
+        commentId: (param) => parseInt(param),
+    })
+    .handle((params) => {});
 // router.ALL("/users/:id/posts/:postId/*").handle(() => {});
 
 const groups = router.listen(8080);
 console.log("testing");
-console.log(groups.getRouteFromPath("/", "GET"));
-console.log(groups.getRouteFromPath("/no2", "POST"));
-console.log(groups.getRouteFromPath("/", "DELETE"));
+console.log(groups.getRouteFromPath("/a/b", "GET"));
+console.log(groups.getRouteFromPath("/1/b", "POST"));
+console.log(groups.getRouteFromPath("/users/1", "GET"));
+console.log(groups.getRouteFromPath("/users/1/comments/2", "GET"));
 // console.log(groups.getRouteFromPath("/123", "GET"));
 // console.log(groups.getRouteFromPath("/123/abc", "GET"));
 // console.log(groups.getRouteFromPath("/", "POST"));

@@ -1,10 +1,15 @@
-import { type ParserFunction, ParserFunctions, Route } from "./route.js";
 import {
+    BuildableToRoutes,
+    ParserFunction,
+    RouteBuilder,
+    RouteBuilderAllMethods,
     RouteBuilderUnparsed,
-    RouteBuilderUnparsedBackend,
-    RouteBuilderUnparsedMethodWildcard,
-    RouteBuilderUnparsedMethodWildcardBackend,
-} from "./routeBuilder.js";
+    RouteBuilderUnparsedAllMethods,
+    RouteGroupBuilder,
+    RouteGroupBuilderUnparsed,
+} from "./builders.js";
+import { Route } from "./route.js";
+
 // import { Server } from "./server.js";
 
 /*
@@ -138,7 +143,7 @@ class RouteGroup {
             );
 
             dynamicChildRouteGroup.makeRouteGroupsForPath(
-                `/${route.path.slice(slug.length + 2)}`,
+                `/${path.slice(slug.length + 2)}`,
                 route
             );
 
@@ -438,48 +443,49 @@ class RouteGroup {
 }
 
 export class Router {
-    private readonly routeBuilders: (
-        | RouteBuilderUnparsedBackend<Path, Method[]>
-        | RouteBuilderUnparsedMethodWildcardBackend<Path>
-    )[] = [];
+    private readonly routeBuilders: BuildableToRoutes[] = [];
+    private readonly groupBuilders: BuildableToRoutes[] = [];
 
     constructor() {}
 
-    get<R extends Path>(route: R): RouteBuilderUnparsed<R, ["GET"]> {
+    get<R extends Path>(route: R): RouteBuilderUnparsed<R, ["GET"], {}> {
         return this.on("GET", route);
     }
 
-    post<R extends Path>(route: R): RouteBuilderUnparsed<R, ["POST"]> {
+    post<R extends Path>(route: R): RouteBuilderUnparsed<R, ["POST"], {}> {
         return this.on("POST", route);
     }
 
-    put<R extends Path>(route: R): RouteBuilderUnparsed<R, ["PUT"]> {
+    put<R extends Path>(route: R): RouteBuilderUnparsed<R, ["PUT"], {}> {
         return this.on("PUT", route);
     }
 
-    delete<R extends Path>(route: R): RouteBuilderUnparsed<R, ["DELETE"]> {
+    delete<R extends Path>(route: R): RouteBuilderUnparsed<R, ["DELETE"], {}> {
         return this.on("DELETE", route);
     }
 
     on<M extends Method, R extends Path>(
         method: M,
         route: R
-    ): RouteBuilderUnparsed<R, [M]> {
-        const builderBackend = new RouteBuilderUnparsedBackend<R, [M]>(route, [
-            method,
-        ]);
-        this.routeBuilders.push(builderBackend);
+    ): RouteBuilderUnparsed<R, [M], {}> {
+        const builder = new RouteBuilder<R, [M], {}>(route, [method]);
+        this.routeBuilders.push(builder);
 
-        return new RouteBuilderUnparsed(builderBackend, route, [method]);
+        return builder;
     }
 
-    all<R extends Path>(route: R): RouteBuilderUnparsedMethodWildcard<R> {
-        const builderBackend = new RouteBuilderUnparsedMethodWildcardBackend<R>(
-            route
-        );
-        this.routeBuilders.push(builderBackend);
+    all<R extends Path>(route: R): RouteBuilderUnparsedAllMethods<R, {}> {
+        const builder = new RouteBuilderAllMethods<R, {}>(route);
+        this.routeBuilders.push(builder);
 
-        return new RouteBuilderUnparsedMethodWildcard(builderBackend, route);
+        return builder;
+    }
+
+    group<R extends Path>(path: R): RouteGroupBuilderUnparsed<R, {}> {
+        const builder = new RouteGroupBuilder<R, {}>(path);
+        this.groupBuilders.push(builder);
+
+        return builder;
     }
 
     private buildRouteBuilders(): RouteGroup {
@@ -491,7 +497,11 @@ export class Router {
             }
         }
 
-        console.log(parentRouteGroup);
+        for (const builder of this.groupBuilders) {
+            for (const route of builder.build()) {
+                parentRouteGroup.makeRouteGroupsForPath(route.path, route);
+            }
+        }
 
         return parentRouteGroup;
     }
