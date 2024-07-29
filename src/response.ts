@@ -58,7 +58,7 @@ type ServerErrorStatusCode =
     | 510
     | 511;
 
-type StatusCode =
+export type StatusCode =
     | InfoStatusCode
     | SuccessStatusCode
     | RedirectStatusCode
@@ -76,7 +76,162 @@ const HEADERS = {
     },
 } as const;
 
+/** @see {@link https://developer.mozilla.org/en-US/docs/Web/HTTP/Status#information_responses} */
+export const statusCodes = {
+    Continue: 100,
+    SwitchingProtocols: 101,
+    Processing: 102,
+    EarlyHints: 103,
+    Ok: 200,
+    Created: 201,
+    Accepted: 202,
+    NonAuthoritativeInformation: 203,
+    NoContent: 204,
+    ResetContent: 205,
+    PartialContent: 206,
+    MultiStatus: 207,
+    AlreadyReported: 208,
+    IMUsed: 226,
+    MultipleChoises: 300,
+    MovedPermanently: 301,
+    Found: 302,
+    SeeOther: 303,
+    NotModified: 304,
+    TemporaryRedirect: 307,
+    PermanentRedirect: 308,
+    BadRequest: 400,
+    Unauthorized: 401,
+    PaymentRequired: 402,
+    Forbidden: 403,
+    NotFound: 404,
+    MethodNotAllowed: 405,
+    NotAcceptable: 406,
+    ProxyAuthenticationRequired: 407,
+    RequestTimeout: 408,
+    Conflict: 409,
+    Gone: 410,
+    LengthRequired: 411,
+    PreconditionFailed: 412,
+    PayloadTooLarge: 413,
+    URITooLong: 414,
+    UnsupportedMediaType: 415,
+    RangeNotSatisfiable: 416,
+    ExpectationFailed: 417,
+    ImATeapot: 418,
+    MisdirectedRequest: 421,
+    UnprocessableContent: 422,
+    Locked: 423,
+    FailedDependency: 424,
+    TooEarly: 425,
+    UpgrageRequired: 426,
+    PreconditionRequired: 428,
+    TooManyRequests: 429,
+    RequestHeaderFieldsTooLarge: 431,
+    UnavailableForLegalReasons: 451,
+    InternalServerError: 500,
+    NotImplemented: 501,
+    BadGateway: 502,
+    ServiceUnavailable: 503,
+    GatewayTimeout: 504,
+    HTTPVersionNotSupported: 505,
+    VariantAlsoNegotiates: 506,
+    InsufficientStorage: 507,
+    LoopDetected: 508,
+    NotExtended: 510,
+    NetworkAuthenticationRequired: 511,
+} as const;
+
+type StreamDataEventListener = (chunk: string) => Promise<void> | void;
+type StreamCloseEventListener = () => Promise<void> | void;
+
+class Stream<R extends Path, M extends Method[] | null> {
+    private onDataListeners: StreamDataEventListener[] = [];
+    private onCloseListeners: StreamCloseEventListener[] = [];
+
+    constructor(
+        private readonly server: Server,
+        private readonly response: http.ServerResponse,
+        private readonly streamFunction: (
+            stream: Stream<R, M>
+        ) => Promise<void> | void
+    ) {}
+
+    /**
+     * Creates an event listener that fires when data is sent through the
+     * stream, before the data gets sent to the client.
+     */
+    onData(listener: StreamDataEventListener): void {
+        this.onDataListeners.push(listener);
+    }
+
+    /**
+     * Creates an event listener that fires when the stream is closed, before
+     * the stream closes for the client.
+     */
+    onClose(listener: StreamCloseEventListener): void {
+        this.onCloseListeners.push(listener);
+    }
+
+    /** **ONLY FOR INTERNAL USE** */
+    async start(): Promise<void> {
+        this.streamFunction(this);
+    }
+
+    /**
+     * Writes a chunk to the response, returns a promise that resolves when the
+     * client has handled the chunk
+     *
+     * @example
+     *     stream.write("Hello World!"); // Send chunk
+     *     stream.close(); // End connection
+     */
+    async write(chunk: string): Promise<void> {
+        for (const dataListener of this.onDataListeners) {
+            await dataListener(chunk);
+        }
+
+        return new Promise((resolve, reject) => {
+            this.response.write(chunk, (err) => {
+                if (err) {
+                    reject(err);
+                    return;
+                }
+
+                resolve();
+            });
+        });
+    }
+
+    /**
+     * Closes the stream, after this nothing more can be written to it. Before
+     * it gets closed all middleware {@link onClose} events will be called
+     */
+    async close(): Promise<void> {
+        for (const closeListener of this.onCloseListeners) {
+            await closeListener();
+        }
+
+        return new Promise((resolve) => {
+            this.response.end(() => {
+                resolve();
+            });
+        });
+    }
+
+    /** A promise that resolves after the delay */
+    sleep(delayMs: number): Promise<void> {
+        return new Promise((resolve) => {
+            setTimeout(() => {
+                resolve();
+            }, delayMs);
+        });
+    }
+}
+
 export class Response<R extends Path, M extends Method[] | null> {
+    stream: Stream<R, M> | undefined;
+    content: string | undefined;
+
     constructor(
         private readonly server: Server,
         private readonly response: http.ServerResponse
@@ -119,45 +274,63 @@ export class Response<R extends Path, M extends Method[] | null> {
     }
 
     /**
-     * Writes a chunk to the response, returns a promise that resolves when the
-     * client has handled the chunk
+     * Creates a stream object and passes it to the callback function. The
+     * `stream` streams data back to the client and can be used alongside
+     * middleware.
      *
      * @example
-     *     response.write("Hello World!"); // Send chunk
-     *     response.body(); // End connection
+     *     response.stream(async (stream) => {
+     *         let i = 0;
+     *         while (i < 10) {
+     *             await stream.write(`${i}\n`);
+     *             await stream.sleep(10); // 10 ms
+     *             i++;
+     *         }
+     *         await stream.close();
+     *     });
      */
-    write(chunk: any): Promise<this> {
-        return new Promise((resolve, reject) => {
-            this.response.write(chunk, (err) => {
-                if (err) {
-                    reject(err);
-                    return;
-                }
+    streamResponse(
+        streamFunction: (stream: Stream<R, M>) => Promise<void> | void
+    ): void {
+        if (this.stream) throw "Only one stream per response!";
 
-                resolve(this);
-            });
-        });
+        this.stream = new Stream<R, M>(
+            this.server,
+            this.response,
+            streamFunction
+        );
     }
 
+    /**
+     * Sets the response body, will only be sent to the client after it has gone
+     * through all the middleware.
+     */
     body(body: string): void {
-        this.response.end(body);
+        this.content = body;
     }
 
+    /** Same as {@link body} but sets the `Content-Type` header to `text/plain` */
     text(body: string): void {
         this.header(HEADERS.contentType.name, HEADERS.contentType.values.text);
         this.body(body);
     }
 
+    /**
+     * Same as {@link body} but sets the `Content-Type` header to
+     * `application/json`
+     */
     json(body: Record<string, unknown> | Record<string, unknown>[]): void {
         this.header(HEADERS.contentType.name, HEADERS.contentType.values.json);
         this.body(JSON.stringify(body));
     }
 
+    /** Same as {@link body} but sets the `Content-Type` header to `text/html` */
     html(body: string): void {
         this.header(HEADERS.contentType.name, HEADERS.contentType.values.html);
         this.body(body);
     }
 
+    /** Sets the status code to `200` */
     ok(): this {
         this.status(200);
 

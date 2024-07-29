@@ -37,7 +37,10 @@ type Params<T extends Path> = DynamicOptionalWildcardRoute<T>;
 
 type UnparseableFunction = () => never;
 
-/** Parser function with the type of the param, throw Unparseable error if the dynamic route is invalid */
+/**
+ * Parser function with the type of the param, throw Unparseable error if the
+ * dynamic route is invalid
+ */
 export type ParserFunction<T> = (data: {
     param: T;
     unparseable: UnparseableFunction;
@@ -49,7 +52,10 @@ export type CustomParserFunction<T, R> = (data: {
     unparseable: UnparseableFunction;
 }) => R;
 
-/** The parser functions for a path, should only be used in frontend. Excludes already parsed params */
+/**
+ * The parser functions for a path, should only be used in frontend. Excludes
+ * already parsed params
+ */
 type ParserFunctionsForPath<
     R extends Path,
     P extends Parsed<ParserFunctions>,
@@ -94,11 +100,24 @@ export type HandlerFunctionArguments<
     response: Response<R, M>;
 };
 
+/** Handles the requests */
 export type HandlerFunction<
     R extends Path,
     M extends Method[] | null,
     P extends Parsed<ParserFunctions>,
 > = (data: HandlerFunctionArguments<R, M, P>) => void | Promise<void>;
+
+export type NextFunction = () => Promise<void> | void;
+
+export interface MiddlewareContext {
+    request: Request<Path, Method[] | null, Record<string, unknown>>;
+    response: Response<Path, Method[] | null>;
+}
+
+export type Middleware = (
+    context: MiddlewareContext,
+    next: NextFunction
+) => Promise<void> | void;
 
 /** Join two paths together */
 type JoinPaths<A extends Path, B extends Path> = A extends "/"
@@ -124,6 +143,7 @@ export interface RouteBuilderUnparsedAllMethods<
     R extends Path,
     P extends Parsed<ParserFunctions>,
 > extends RouteBuilderParsedAllMethods<R, P> {
+    use(middleware: Middleware): this;
     parse<T extends ParserFunctionsForPath<R, P>>(
         parsers: T
     ): RouteBuilderParsedAllMethods<R, P & Parsed<T>>;
@@ -142,6 +162,7 @@ export interface RouteBuilderUnparsed<
     M extends Method[],
     P extends Parsed<ParserFunctions>,
 > extends RouteBuilderParsed<R, M, P> {
+    use(middleware: Middleware): this;
     on<T extends Method>(method: T): RouteBuilderUnparsed<R, [...M, T], P>;
     get(): RouteBuilderUnparsed<R, [...M, "GET"], P>;
     post(): RouteBuilderUnparsed<R, [...M, "POST"], P>;
@@ -163,6 +184,7 @@ export interface RouteGroupBuilderUnparsed<
     R extends Path,
     P extends Parsed<ParserFunctions>,
 > extends RouteGroupBuilderParsed<R, P> {
+    use(middleware: Middleware): this;
     parse<T extends ParserFunctionsForPath<R, P>>(
         parsers: T
     ): RouteGroupBuilderParsed<R, P & Parsed<T>>;
@@ -204,6 +226,7 @@ export class RouteBuilder<
 {
     parsers: ParserFunctions | undefined;
     handler: HandlerFunction<R, M, P> | undefined;
+    middleware: Middleware[] = [];
 
     constructor(
         readonly path: R,
@@ -215,6 +238,11 @@ export class RouteBuilder<
     ): RouteBuilderParsed<R, M, P & Parsed<T>> {
         this.parsers = parsers;
         return this as unknown as RouteBuilderParsed<R, M, P & Parsed<T>>;
+    }
+
+    use(middleware: Middleware): this {
+        this.middleware.push(middleware);
+        return this;
     }
 
     on<T extends Method>(method: T): RouteBuilderUnparsed<R, [...M, T], P> {
@@ -248,7 +276,13 @@ export class RouteBuilder<
         const routes: Route[] = [];
         for (const method of this.methods) {
             routes.push(
-                new Route(this.path, method, this.parsers || {}, this.handler)
+                new Route(
+                    this.path,
+                    method,
+                    this.parsers || {},
+                    this.handler,
+                    this.middleware.reverse()
+                )
             );
         }
 
@@ -264,6 +298,7 @@ export class RouteBuilderAllMethods<
 {
     parsers: ParserFunctions | undefined;
     handler: HandlerFunction<R, null, P> | undefined;
+    middleware: Middleware[] = [];
 
     constructor(readonly path: R) {}
 
@@ -277,6 +312,11 @@ export class RouteBuilderAllMethods<
         >;
     }
 
+    use(middleware: Middleware): this {
+        this.middleware.push(middleware);
+        return this;
+    }
+
     handle(handler: HandlerFunction<R, null, P>): void {
         this.handler = handler;
     }
@@ -284,7 +324,15 @@ export class RouteBuilderAllMethods<
     build(): Route[] {
         if (!this.handler) throw "Route builder needs a handler!";
 
-        return [new Route(this.path, null, this.parsers || {}, this.handler)];
+        return [
+            new Route(
+                this.path,
+                null,
+                this.parsers || {},
+                this.handler,
+                this.middleware.reverse()
+            ),
+        ];
     }
 }
 
@@ -296,6 +344,7 @@ export class RouteGroupBuilder<
 {
     parsers: ParserFunctions | undefined;
     routeGroup: RouteGroupBackend<R, P> | undefined;
+    middleware: Middleware[] = [];
 
     constructor(readonly path: R) {}
 
@@ -306,8 +355,13 @@ export class RouteGroupBuilder<
         return this as unknown as RouteGroupBuilderParsed<R, P & Parsed<T>>;
     }
 
+    use(middleware: Middleware): this {
+        this.middleware.push(middleware);
+        return this;
+    }
+
     handle(): RouteGroup<R, P> {
-        this.routeGroup = new RouteGroupBackend(this.path);
+        this.routeGroup = new RouteGroupBackend(this.path, this.middleware);
         return this.routeGroup;
     }
 
@@ -330,8 +384,14 @@ class RouteGroupBackend<R extends Path, P extends Parsed<ParserFunctions>>
 {
     routeBuilders: BuildableToRoutes[] = [];
     groupBuilders: BuildableToRoutes[] = [];
+    readonly middleware: Middleware[] = [];
 
-    constructor(readonly path: R) {}
+    constructor(
+        readonly path: R,
+        middleware: Middleware[]
+    ) {
+        this.middleware = middleware.reverse();
+    }
 
     on<T extends Method, U extends Path>(
         method: T,
@@ -404,51 +464,10 @@ class RouteGroupBackend<R extends Path, P extends Parsed<ParserFunctions>>
             routes.push(...builder.build());
         }
 
+        for (const route of routes) {
+            route.middleware.push(...this.middleware);
+        }
+
         return routes;
     }
 }
-
-// const r: RouteBuilderUnparsed<"/:a/:b/*?", ["GET"], {}> = new RouteBuilder<
-//     "/:a/:b/*?",
-//     ["GET"],
-//     {}
-// >("/:a/:b/*?", ["GET"]);
-
-// r.on("POST")
-//     .parse({
-//         a: (param) => parseInt(param),
-//         wildcard: (param) => (param === undefined ? param : null),
-//     })
-//     .handle((params) => {
-//         params;
-//     });
-
-// const gb: RouteGroupBuilderUnparsed<"/:a/:b", {}> = new RouteGroupBuilder<
-//     "/:a/:b",
-//     {}
-// >("/:a/:b");
-// const g = gb
-//     .parse({
-//         a: (param) => param.trim(),
-//     })
-//     .handle();
-
-// g.on("GET", "/")
-//     .parse({
-//         b: (param) => parseInt(param),
-//     })
-//     .handle((params) => {
-//         params;
-//     });
-// g.all("/").handle((params) => {
-//     params;
-// });
-// const g2 = g.group("/:c/*?").parse({
-//     wildcard: (param) => !!param
-// }).handle();
-
-// g2.on("GET", "/").parse({
-//     b: (param) => parseInt(param)
-// }).handle((params) => {
-//     params.
-// })

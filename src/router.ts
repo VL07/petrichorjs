@@ -1,5 +1,6 @@
 import {
     BuildableToRoutes,
+    Middleware,
     ParserFunction,
     RouteBuilder,
     RouteBuilderAllMethods,
@@ -533,6 +534,7 @@ export class RouteGroup {
 export class Router {
     private readonly routeBuilders: BuildableToRoutes[] = [];
     private readonly groupBuilders: BuildableToRoutes[] = [];
+    private middleware: Middleware[] = [];
 
     constructor() {}
 
@@ -600,6 +602,11 @@ export class Router {
         return builder;
     }
 
+    use(middleware: Middleware): this {
+        this.middleware.push(middleware);
+        return this;
+    }
+
     /**
      * Create a group of routes. The path can include dynamic paths and they can
      * be parsed using the `parse` function before calling `handle`
@@ -627,14 +634,18 @@ export class Router {
     private buildRouteBuilders(): RouteGroup {
         const parentRouteGroup = new RouteGroup("/");
 
+        this.middleware = this.middleware.reverse();
+
         for (const builder of this.routeBuilders) {
             for (const route of builder.build()) {
+                route.middleware.push(...this.middleware);
                 parentRouteGroup.makeRouteGroupsForPath(route.path, route);
             }
         }
 
         for (const builder of this.groupBuilders) {
             for (const route of builder.build()) {
+                route.middleware.push(...this.middleware);
                 parentRouteGroup.makeRouteGroupsForPath(route.path, route);
             }
         }

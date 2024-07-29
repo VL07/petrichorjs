@@ -48,21 +48,15 @@ export class Server {
         const parsedRequest = new Request(this, request, route?.params);
         const parsedResponse = new Response(this, response);
 
-        try {
-            await route.route.handleRequest({
-                request: parsedRequest,
-                response: parsedResponse,
-            });
-        } catch (err) {
-            if (err instanceof UnparseableError) {
-                parsedResponse.status(400).json({
-                    message: `The param '${err.name}' could not be parsed!`,
-                });
+        await route.route.handleRequest({
+            request: parsedRequest,
+            response: parsedResponse,
+        });
 
-                return;
-            }
-
-            throw err;
+        if (parsedResponse.stream) {
+            await parsedResponse.stream.start();
+        } else {
+            response.end(parsedResponse.content);
         }
     }
 }
