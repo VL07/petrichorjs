@@ -1,7 +1,12 @@
 import http from "http";
 import type { Server } from "./server.js";
 import type { Method, Path } from "./router.js";
-import type { Parsed, ParserFunction, ParserFunctions } from "./builders.js";
+import type {
+    Locals,
+    Parsed,
+    ParserFunction,
+    ParserFunctions,
+} from "./builders.js";
 import { throwUnparseableError } from "./error.js";
 
 /** Handles query params for requests. */
@@ -44,6 +49,7 @@ export class Request<
     R extends Path,
     M extends Method[] | null,
     P extends Parsed<ParserFunctions>,
+    L extends Locals,
 > {
     /**
      * The url params with thire types.
@@ -81,14 +87,18 @@ export class Request<
      */
     readonly query: QueryParams;
 
+    locals: L;
+
     private bodyString: string;
 
     constructor(
         private readonly server: Server,
         private readonly request: http.IncomingMessage,
-        params: P
+        params: P,
+        locals: L
     ) {
         this.params = params;
+        this.locals = locals;
         this.url = this.urlFromRequestUrl(request.url!);
         this.method = request.method! as M extends Method[]
             ? M[number]

@@ -45,7 +45,7 @@ export class Server {
             return;
         }
 
-        const parsedRequest = new Request(this, request, route?.params);
+        const parsedRequest = new Request(this, request, route?.params, {});
         const parsedResponse = new Response(this, response);
 
         await route.route.handleRequest({

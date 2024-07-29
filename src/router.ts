@@ -1,6 +1,10 @@
 import {
+    BeforeFunction,
     BuildableToRoutes,
+    JoinLocals,
+    Locals,
     Middleware,
+    MiddlewareOrBefore,
     ParserFunction,
     RouteBuilder,
     RouteBuilderAllMethods,
@@ -127,7 +131,7 @@ export class RouteGroup {
 
         let existingMethod = this.routes.get(route.method);
         if (existingMethod)
-            throw "Only one route per path and method can be created!";
+            throw `Only one route per path and method can be created! Path: '${existingMethod.path}'`;
 
         this.routes.set(route.method, route);
     }
@@ -531,15 +535,15 @@ export class RouteGroup {
  * router.get("/users/:id").handle(({ request, response }) => {});
  * ```
  */
-export class Router {
+export class Router<L extends Locals = {}> {
     private readonly routeBuilders: BuildableToRoutes[] = [];
     private readonly groupBuilders: BuildableToRoutes[] = [];
-    private middleware: Middleware[] = [];
+    private middleware: MiddlewareOrBefore[] = [];
 
     constructor() {}
 
     /** Handle `get` requests. Shorthand for the `router.on("GET", ...)` method. */
-    get<R extends Path>(route: R): RouteBuilderUnparsed<R, ["GET"], {}> {
+    get<R extends Path>(route: R): RouteBuilderUnparsed<R, ["GET"], {}, {}> {
         return this.on("GET", route);
     }
 
@@ -547,12 +551,12 @@ export class Router {
      * Handle `post` requests. Shorthand for the `router.on("POST", ...)`
      * method.
      */
-    post<R extends Path>(route: R): RouteBuilderUnparsed<R, ["POST"], {}> {
+    post<R extends Path>(route: R): RouteBuilderUnparsed<R, ["POST"], {}, {}> {
         return this.on("POST", route);
     }
 
     /** Handle `put` requests. Shorthand for the `router.on("PUT", ...)` method. */
-    put<R extends Path>(route: R): RouteBuilderUnparsed<R, ["PUT"], {}> {
+    put<R extends Path>(route: R): RouteBuilderUnparsed<R, ["PUT"], {}, {}> {
         return this.on("PUT", route);
     }
 
@@ -560,7 +564,9 @@ export class Router {
      * Handle `delete` requests. Shorthand for the `router.on("GET", ...)`
      * method.
      */
-    delete<R extends Path>(route: R): RouteBuilderUnparsed<R, ["DELETE"], {}> {
+    delete<R extends Path>(
+        route: R
+    ): RouteBuilderUnparsed<R, ["DELETE"], {}, {}> {
         return this.on("DELETE", route);
     }
 
@@ -578,8 +584,8 @@ export class Router {
     on<M extends Method, R extends Path>(
         method: M,
         route: R
-    ): RouteBuilderUnparsed<R, [M], {}> {
-        const builder = new RouteBuilder<R, [M], {}>(route, [method]);
+    ): RouteBuilderUnparsed<R, [M], {}, {}> {
+        const builder = new RouteBuilder<R, [M], {}, {}>(route, [method]);
         this.routeBuilders.push(builder);
 
         return builder;
@@ -595,16 +601,63 @@ export class Router {
      *         console.log(request.params.wildcard);
      *     });
      */
-    all<R extends Path>(route: R): RouteBuilderUnparsedAllMethods<R, {}> {
-        const builder = new RouteBuilderAllMethods<R, {}>(route);
+    all<R extends Path>(route: R): RouteBuilderUnparsedAllMethods<R, {}, {}> {
+        const builder = new RouteBuilderAllMethods<R, {}, {}>(route);
         this.routeBuilders.push(builder);
 
         return builder;
     }
 
+    /**
+     * Middleware is a function that gets called before the request gets handled
+     * by the handler, it has access to the request, response and calling the
+     * next handler method. The middleware to be created first will execute
+     * first on incomming requests. For the next middleware and eventually the
+     * route handler to be executed the `next` function has to be called. The
+     * `next` function dosn't return anything but it might mutate the `response`
+     * object depending on what the next middleware or the request handler
+     * does.
+     *
+     * @example
+     *     router.use(async ({ request, response }, next) => {
+     *         console.log("Started middleware");
+     *         await next();
+     *         console.log("Ended middleware");
+     *     });
+     */
     use(middleware: Middleware): this {
-        this.middleware.push(middleware);
+        this.middleware.push({
+            type: "Middleware",
+            middleware: middleware,
+        });
         return this;
+    }
+
+    /**
+     * A middleware that only has access to the request and runs before the
+     * route is handled. It can change request `locals` by returning a object of
+     * the `locals`. **Always assign the router valiable after using this or the
+     * type checking won't work as expected!**
+     *
+     * @example
+     *     const router = new Router().before(async (request) => {
+     *         return {
+     *             user: await getUser(request),
+     *         };
+     *     });
+     *     router.get("/").handle(({ request, response }) => {
+     *         console.log(request.locals); // { user: User }
+     *     });
+     */
+    before<T extends BeforeFunction>(
+        beforeFunction: T
+    ): Router<JoinLocals<T, L>> {
+        this.middleware.push({
+            type: "Before",
+            before: beforeFunction,
+        });
+
+        return this as Router<JoinLocals<T, L>>;
     }
 
     /**
@@ -624,8 +677,8 @@ export class Router {
      *         })
      *         .handle();
      */
-    group<R extends Path>(path: R): RouteGroupBuilderUnparsed<R, {}> {
-        const builder = new RouteGroupBuilder<R, {}>(path);
+    group<R extends Path>(path: R): RouteGroupBuilderUnparsed<R, {}, {}> {
+        const builder = new RouteGroupBuilder<R, {}, {}>(path);
         this.groupBuilders.push(builder);
 
         return builder;
@@ -634,18 +687,23 @@ export class Router {
     private buildRouteBuilders(): RouteGroup {
         const parentRouteGroup = new RouteGroup("/");
 
-        this.middleware = this.middleware.reverse();
-
         for (const builder of this.routeBuilders) {
             for (const route of builder.build()) {
-                route.middleware.push(...this.middleware);
+                route.middleware = [
+                    ...this.middleware,
+                    ...route.middleware,
+                ].reverse();
                 parentRouteGroup.makeRouteGroupsForPath(route.path, route);
             }
         }
 
         for (const builder of this.groupBuilders) {
             for (const route of builder.build()) {
-                route.middleware.push(...this.middleware);
+                console.log(route);
+                route.middleware = [
+                    ...this.middleware,
+                    ...route.middleware,
+                ].reverse();
                 parentRouteGroup.makeRouteGroupsForPath(route.path, route);
             }
         }
