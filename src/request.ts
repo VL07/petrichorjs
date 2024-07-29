@@ -2,6 +2,7 @@ import http from "http";
 import type { Server } from "./server.js";
 import type { Method, Path } from "./router.js";
 import type { Parsed, ParserFunction, ParserFunctions } from "./builders.js";
+import { throwUnparseableError } from "./error.js";
 
 class QueryParams {
     private readonly queryParams: URLSearchParams;
@@ -17,12 +18,14 @@ class QueryParams {
     getAndParse<T extends ParserFunction<string | undefined>>(
         name: string,
         parser: T
-    ): Exclude<ReturnType<T>, null> {
+    ): ReturnType<T> {
         const queryParam = this.get(name);
-        const parsed = parser(queryParam);
-        if (parsed === null) throw "Parer thaught query param was invalid!";
+        const parsed = parser({
+            param: queryParam,
+            unparseable: () => throwUnparseableError(name),
+        });
 
-        return parsed as Exclude<ReturnType<T>, null>;
+        return parsed as ReturnType<T>;
     }
 
     all(): Map<string, string> {

@@ -8,6 +8,7 @@ import {
     RouteGroupBuilder,
     RouteGroupBuilderUnparsed,
 } from "./builders.js";
+import { throwUnparseableError, UnparseableError } from "./error.js";
 import { Route } from "./route.js";
 import { Server } from "./server.js";
 
@@ -264,6 +265,42 @@ export class RouteGroup {
         }
     }
 
+    private parseOrCatchUnparseable<T>(
+        parser: ParserFunction<T> | undefined,
+        param: T,
+        name: string
+    ):
+        | { success: false; parsed: undefined }
+        | { success: true; parsed: unknown } {
+        if (!parser) {
+            return {
+                success: true,
+                parsed: param,
+            };
+        }
+
+        try {
+            const parsed = parser({
+                param: param,
+                unparseable: () => throwUnparseableError(name),
+            });
+
+            return {
+                success: true,
+                parsed: parsed,
+            };
+        } catch (err) {
+            if (err instanceof UnparseableError) {
+                return {
+                    success: false,
+                    parsed: undefined,
+                };
+            }
+
+            throw err;
+        }
+    }
+
     getRouteFromPath(
         path: Path,
         method: Method
@@ -284,10 +321,12 @@ export class RouteGroup {
                 this.dynamicChildGroupsMethodWildcard;
             if (optionalDynamicRouteMetod) {
                 for (const optionalDynamicRoute of optionalDynamicRouteMetod.optional) {
-                    const parsed = optionalDynamicRoute.parser
-                        ? optionalDynamicRoute.parser(undefined)
-                        : undefined;
-                    if (parsed === null) continue;
+                    const { success, parsed } = this.parseOrCatchUnparseable(
+                        optionalDynamicRoute.parser,
+                        undefined,
+                        optionalDynamicRoute.dynamicSlugVariableName
+                    );
+                    if (success) continue;
 
                     const route =
                         optionalDynamicRoute.routeGroup.getRouteFromPath(
@@ -307,10 +346,12 @@ export class RouteGroup {
                 this.wildcardChildRoutesMethodWildcard
             )?.optional;
             if (optionalWildcardRoute) {
-                const parsed = optionalWildcardRoute.parser
-                    ? optionalWildcardRoute.parser(undefined)
-                    : undefined;
-                if (parsed === null) return undefined;
+                const { success, parsed } = this.parseOrCatchUnparseable(
+                    optionalWildcardRoute.parser,
+                    undefined,
+                    "wildcard"
+                );
+                if (!success) return undefined;
 
                 return {
                     params: { wildcard: parsed },
@@ -370,10 +411,12 @@ export class RouteGroup {
         if (!dynamicChildGroupsMethod) return undefined;
 
         for (const dynamicRouteGroup of dynamicChildGroupsMethod.required) {
-            const parsed = dynamicRouteGroup.parser
-                ? dynamicRouteGroup.parser(slug)
-                : slug;
-            if (parsed === null) continue;
+            const { success, parsed } = this.parseOrCatchUnparseable(
+                dynamicRouteGroup.parser,
+                slug,
+                dynamicRouteGroup.dynamicSlugVariableName
+            );
+            if (!success) continue;
 
             const route = dynamicRouteGroup.routeGroup.getRouteFromPath(
                 restPath,
@@ -386,10 +429,12 @@ export class RouteGroup {
         }
 
         for (const dynamicRouteGroup of dynamicChildGroupsMethod.optional) {
-            const parsed = dynamicRouteGroup.parser
-                ? dynamicRouteGroup.parser(slug)
-                : slug;
-            if (parsed === null) continue;
+            const { success, parsed } = this.parseOrCatchUnparseable(
+                dynamicRouteGroup.parser,
+                slug,
+                dynamicRouteGroup.dynamicSlugVariableName
+            );
+            if (!success) continue;
 
             const route = dynamicRouteGroup.routeGroup.getRouteFromPath(
                 restPath,
@@ -415,10 +460,12 @@ export class RouteGroup {
 
         const requiredWildcardRoute = wildcardChildGroupsMethod.required;
         if (requiredWildcardRoute) {
-            const parsed = requiredWildcardRoute?.parser
-                ? requiredWildcardRoute.parser(path)
-                : path;
-            if (parsed !== undefined) {
+            const { success, parsed } = this.parseOrCatchUnparseable(
+                requiredWildcardRoute.parser,
+                path,
+                "wildcard"
+            );
+            if (success) {
                 return {
                     params: { wildcard: parsed },
                     route: requiredWildcardRoute.route,
@@ -428,10 +475,12 @@ export class RouteGroup {
 
         const optionalWildcardRoute = wildcardChildGroupsMethod.optional;
         if (optionalWildcardRoute) {
-            const parsed = optionalWildcardRoute?.parser
-                ? optionalWildcardRoute.parser(path)
-                : path;
-            if (parsed !== undefined) {
+            const { success, parsed } = this.parseOrCatchUnparseable(
+                optionalWildcardRoute.parser,
+                path,
+                "wildcard"
+            );
+            if (success) {
                 return {
                     params: { wildcard: parsed },
                     route: optionalWildcardRoute.route,

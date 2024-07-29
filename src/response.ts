@@ -124,7 +124,7 @@ export class Response<R extends Path, M extends Method[] | null> {
         this.body(body);
     }
 
-    json(body: string): void {
+    json(body: Record<string, unknown> | Record<string, unknown>[]): void {
         this.header(HEADERS.contentType.name, HEADERS.contentType.values.json);
         this.body(JSON.stringify(body));
     }

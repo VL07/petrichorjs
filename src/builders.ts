@@ -35,8 +35,19 @@ type StaticEndRoute<T extends Path> = T extends `/${string}` ? {} : {};
 /** Get the params, and thire value, from a path */
 type Params<T extends Path> = DynamicOptionalWildcardRoute<T>;
 
-/** Parser function with the type of the param, returns null if the dynamic route is invalid */
-export type ParserFunction<T> = (param: T) => unknown | null;
+type UnparseableFunction = () => never;
+
+/** Parser function with the type of the param, throw Unparseable error if the dynamic route is invalid */
+export type ParserFunction<T> = (data: {
+    param: T;
+    unparseable: UnparseableFunction;
+}) => unknown;
+
+/** The type for custom parser functions */
+export type CustomParserFunction<T, R> = (data: {
+    param: T;
+    unparseable: UnparseableFunction;
+}) => R;
 
 /** The parser functions for a path, should only be used in frontend. Excludes already parsed params */
 type ParserFunctionsForPath<
@@ -64,7 +75,7 @@ type A =
 /** Get the return type for the parser functions */
 export type Parsed<T extends ParserFunctions> = {
     [K in keyof T]: T[K] extends (...args: any) => any
-        ? Exclude<ReturnType<T[K]>, null>
+        ? ReturnType<T[K]>
         : undefined;
 };
 
