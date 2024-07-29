@@ -1,3 +1,5 @@
+import { Request } from "./request.js";
+import { Response } from "./response.js";
 import { Route } from "./route.js";
 import type { Method, Path } from "./router.js";
 
@@ -60,7 +62,7 @@ type A =
     ParserFunctionsForPath<"/:a", {}> extends ParserFunctions ? true : false;
 
 /** Get the return type for the parser functions */
-type Parsed<T extends ParserFunctions> = {
+export type Parsed<T extends ParserFunctions> = {
     [K in keyof T]: T[K] extends (...args: any) => any
         ? Exclude<ReturnType<T[K]>, null>
         : undefined;
@@ -72,10 +74,20 @@ type DefaultOrParsedParams<
     P extends Parsed<ParserFunctions>,
 > = Omit<Params<R>, keyof P> & P;
 
+export type HandlerFunctionArguments<
+    R extends Path,
+    M extends Method[] | null,
+    P extends Parsed<ParserFunctions>,
+> = {
+    request: Request<R, M, DefaultOrParsedParams<R, P>>;
+    response: Response<R, M>;
+};
+
 export type HandlerFunction<
     R extends Path,
+    M extends Method[] | null,
     P extends Parsed<ParserFunctions>,
-> = (params: DefaultOrParsedParams<R, P>) => void | Promise<void>;
+> = (data: HandlerFunctionArguments<R, M, P>) => void | Promise<void>;
 
 /** Join two paths together */
 type JoinPaths<A extends Path, B extends Path> = A extends "/"
@@ -94,7 +106,7 @@ interface RouteBuilderParsedAllMethods<
     R extends Path,
     P extends Parsed<ParserFunctions>,
 > {
-    handle(handler: HandlerFunction<R, P>): void;
+    handle(handler: HandlerFunction<R, null, P>): void;
 }
 
 export interface RouteBuilderUnparsedAllMethods<
@@ -111,7 +123,7 @@ interface RouteBuilderParsed<
     M extends Method[],
     P extends Parsed<ParserFunctions>,
 > {
-    handle(handler: HandlerFunction<R, P>): void;
+    handle(handler: HandlerFunction<R, M, P>): void;
 }
 
 export interface RouteBuilderUnparsed<
@@ -180,7 +192,7 @@ export class RouteBuilder<
 > implements RouteBuilderUnparsed<R, M, P>
 {
     parsers: ParserFunctions | undefined;
-    handler: HandlerFunction<R, P> | undefined;
+    handler: HandlerFunction<R, M, P> | undefined;
 
     constructor(
         readonly path: R,
@@ -215,7 +227,7 @@ export class RouteBuilder<
         return this.on("DELETE");
     }
 
-    handle(handler: HandlerFunction<R, P>): void {
+    handle(handler: HandlerFunction<R, M, P>): void {
         this.handler = handler;
     }
 
@@ -240,7 +252,7 @@ export class RouteBuilderAllMethods<
     implements RouteBuilderUnparsedAllMethods<R, P>, BuildableToRoutes
 {
     parsers: ParserFunctions | undefined;
-    handler: HandlerFunction<R, P> | undefined;
+    handler: HandlerFunction<R, null, P> | undefined;
 
     constructor(readonly path: R) {}
 
@@ -254,7 +266,7 @@ export class RouteBuilderAllMethods<
         >;
     }
 
-    handle(handler: HandlerFunction<R, P>): void {
+    handle(handler: HandlerFunction<R, null, P>): void {
         this.handler = handler;
     }
 

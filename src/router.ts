@@ -9,6 +9,7 @@ import {
     RouteGroupBuilderUnparsed,
 } from "./builders.js";
 import { Route } from "./route.js";
+import { Server } from "./server.js";
 
 // import { Server } from "./server.js";
 
@@ -46,7 +47,7 @@ interface WildcardRoute {
     route: Route;
 }
 
-class RouteGroup {
+export class RouteGroup {
     /** The path so far to this group */
     private readonly path: Path;
 
@@ -506,11 +507,9 @@ export class Router {
         return parentRouteGroup;
     }
 
-    listen(port: number): RouteGroup {
-        return this.buildRouteBuilders();
+    listen(port: number): void {
         const routes = this.buildRouteBuilders();
-        // const server = new Server(this.routes, port);
-
-        throw "never";
+        const server = new Server(routes, "localhost", port);
+        server.listen();
     }
 }

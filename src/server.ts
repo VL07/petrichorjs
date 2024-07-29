@@ -1,94 +1,55 @@
-// import http from "http";
-// import type {
-//     Method,
-//     Params,
-//     Path,
-//     Route,
-//     WhereClauseFunction,
-// } from "./router.js";
+import http from "http";
+import { Path, RouteGroup } from "./router.js";
+import { Request } from "./request.js";
+import { Response } from "./response.js";
 
-// interface RoutePath<R extends Path, M extends Method> {
-//     path: R;
-//     method: M;
-//     handler: Route<R, M>;
-// }
+export class Server {
+    private readonly server: http.Server;
 
-// interface DynamicSlug {
-//     dynamicSlugName: string;
-//     whereClauseFunction: WhereClauseFunction<unknown>;
-//     slug: Slug;
-// }
+    constructor(
+        private readonly baseRouteGroup: RouteGroup,
+        readonly host: string,
+        readonly port: number
+    ) {
+        this.server = http.createServer((request, response) =>
+            this.requestHandler(request, response)
+        );
+    }
 
-// interface Slug {
-//     slug: string;
-//     slugChildern: Map<string, Slug>;
-//     dynamicSlugChildern: DynamicSlug[];
-//     routesChildren: Map<Method, RoutePath<Path, Method>>;
-// }
+    listen(): void {
+        this.server.listen(this.port, this.host);
+    }
 
-// export class Server {
-//     private readonly server: http.Server;
+    private async requestHandler(
+        request: http.IncomingMessage,
+        response: http.ServerResponse
+    ): Promise<void> {
+        if (!request.url || !request.method) {
+            response.writeHead(400).end();
+            return;
+        }
 
-//     constructor(
-//         private readonly routes: Slug,
-//         private readonly port: number
-//     ) {
-//         this.server = http.createServer(this.requestHandler);
-//         this.server.listen(port, "localhost");
-//     }
+        const url = new URL(
+            request.url || "/",
+            `http://${this.host}:${this.port}`
+        );
 
-//     private async requestHandler(
-//         request: http.IncomingMessage,
-//         response: http.ServerResponse
-//     ): Promise<void> {}
+        const route = this.baseRouteGroup.getRouteFromPath(
+            url.pathname as Path,
+            request.method
+        );
 
-//     private findRouteHandler<M extends Method>(
-//         method: M,
-//         routePath: Path,
-//         parentSlugGroup: Slug,
-//         params: Record<string, string | undefined>
-//     ):
-//         | {
-//               route: Route<Path, Method>;
-//               params: Record<string, string | undefined>;
-//           }
-//         | undefined {
-//         if (routePath === "/") {
-//             const route = parentSlugGroup.routesChildren.get(method);
-//             return (
-//                 route && {
-//                     route: route.handler,
-//                     params: params,
-//                 }
-//             );
-//         }
+        if (!route) {
+            response.writeHead(404).end();
+            return;
+        }
 
-//         const slugEndIndex = routePath.slice(1).indexOf("/");
-//         const slug = routePath.slice(1, slugEndIndex);
+        const parsedRequest = new Request(this, request, route?.params);
+        const parsedResponse = new Response(this, response);
 
-//         const slugGroup = parentSlugGroup.slugChildern.get(slug);
-//         if (slugGroup) {
-//             return this.findRouteHandler(
-//                 method,
-//                 `/${routePath.slice(slugEndIndex + 1)}`,
-//                 slugGroup,
-//                 params
-//             );
-//         }
-
-//         for (const dynamicSlug of parentSlugGroup.dynamicSlugChildern) {
-//             const slugValid = dynamicSlug.whereClauseFunction(slug);
-//             if (!slugValid) continue;
-
-//             const route = this.findRouteHandler(
-//                 method,
-//                 `/${routePath.slice(slugEndIndex + 1)}`,
-//                 dynamicSlug.slug,
-//                 { ...params, [dynamicSlug.dynamicSlugName]: slug }
-//             );
-//             if (route) return route;
-//         }
-
-//         return undefined;
-//     }
-// }
+        await route.route.handleRequest({
+            request: parsedRequest,
+            response: parsedResponse,
+        });
+    }
+}
