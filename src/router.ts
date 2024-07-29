@@ -12,8 +12,6 @@ import { throwUnparseableError, UnparseableError } from "./error.js";
 import { Route } from "./route.js";
 import { Server } from "./server.js";
 
-// import { Server } from "./server.js";
-
 /*
  * > Order of route execution:
  * 1. Static routes
@@ -33,7 +31,21 @@ import { Server } from "./server.js";
  * GET "/users/123/abc" will match route .3
  */
 
+/**
+ * Path for routes, must start with a slash.
+ *
+ * @example
+ *     ```ts
+ *     const path: Path = "/users/:id" // Ok
+ *     const path: Path = "users/:id" // Not ok
+ *     ```;
+ */
 export type Path = `/${string}`;
+
+/**
+ * Http methods. All strings are allowed to support custom methods, but non
+ * standard ones don't have shorthand methods.
+ */
 export type Method = "GET" | "POST" | "PUT" | "DELETE" | string;
 export type Body = unknown;
 
@@ -492,28 +504,75 @@ export class RouteGroup {
     }
 }
 
+/**
+ * Handles the incomming requests and finds a route that matches
+ *
+ * The order of what route gets selected is as follows:
+ *
+ * 1. Static routes: `/users/me` or `/`
+ * 2. Dynamic routes: `/users/:id`
+ * 3. Optional dynamic routes: `/users/:id?`
+ * 4. Wildcard routes: `/users/*`
+ * 5. Optional wildcard routes: `/users/*?`
+ *
+ * The method order:
+ *
+ * 1. Explicit methods: `router.get`, `router.post` or `router.on`
+ * 2. Wildcard methods: `router.all`
+ *
+ * Note that the parsers also have to match for the dynamic routes.
+ *
+ * Creating routes can be done by either using the `on` or using one of the
+ * shorthand methods method:
+ *
+ * ```ts
+ * router.on("GET", "/users/:id").handle(({ request, response }) => {});
+ * router.get("/users/:id").handle(({ request, response }) => {});
+ * ```
+ */
 export class Router {
     private readonly routeBuilders: BuildableToRoutes[] = [];
     private readonly groupBuilders: BuildableToRoutes[] = [];
 
     constructor() {}
 
+    /** Handle `get` requests. Shorthand for the `router.on("GET", ...)` method. */
     get<R extends Path>(route: R): RouteBuilderUnparsed<R, ["GET"], {}> {
         return this.on("GET", route);
     }
 
+    /**
+     * Handle `post` requests. Shorthand for the `router.on("POST", ...)`
+     * method.
+     */
     post<R extends Path>(route: R): RouteBuilderUnparsed<R, ["POST"], {}> {
         return this.on("POST", route);
     }
 
+    /** Handle `put` requests. Shorthand for the `router.on("PUT", ...)` method. */
     put<R extends Path>(route: R): RouteBuilderUnparsed<R, ["PUT"], {}> {
         return this.on("PUT", route);
     }
 
+    /**
+     * Handle `delete` requests. Shorthand for the `router.on("GET", ...)`
+     * method.
+     */
     delete<R extends Path>(route: R): RouteBuilderUnparsed<R, ["DELETE"], {}> {
         return this.on("DELETE", route);
     }
 
+    /**
+     * Creates a route builder for the specified method. For all regular methods
+     * you can also use shorthand methods: `get`, `post`, `put` and `delete`
+     *
+     * @example
+     *     // Creates a get handler for the `/users/:id` route
+     *     // Is also the same as doing router.get("/users/:id")
+     *     router.on("GET", "/users/:id").handle(({request, response}) => {
+     *     ...
+     *     })
+     */
     on<M extends Method, R extends Path>(
         method: M,
         route: R
@@ -524,6 +583,16 @@ export class Router {
         return builder;
     }
 
+    /**
+     * Simmilar to the on method, but catches all methods. It will only be ran
+     * if no other routes with matching methods was found. Therefor it can be
+     * used to create custom `404` routes.
+     *
+     * @example
+     *     router.all("/*?").handle(({ request, response }) => {
+     *         console.log(request.params.wildcard);
+     *     });
+     */
     all<R extends Path>(route: R): RouteBuilderUnparsedAllMethods<R, {}> {
         const builder = new RouteBuilderAllMethods<R, {}>(route);
         this.routeBuilders.push(builder);
@@ -531,6 +600,23 @@ export class Router {
         return builder;
     }
 
+    /**
+     * Create a group of routes. The path can include dynamic paths and they can
+     * be parsed using the `parse` function before calling `handle`
+     *
+     * @example
+     *     const userGroup = router.group("/users/:id").handle()
+     *     userGroup.get("/").handle(...) // Will handle get requests to /users/:id
+     *
+     * @example
+     *     // Parse the id with the intParser
+     *     const userGroup = router
+     *         .group("/users/:id")
+     *         .parse({
+     *             id: intParser,
+     *         })
+     *         .handle();
+     */
     group<R extends Path>(path: R): RouteGroupBuilderUnparsed<R, {}> {
         const builder = new RouteGroupBuilder<R, {}>(path);
         this.groupBuilders.push(builder);
@@ -556,6 +642,18 @@ export class Router {
         return parentRouteGroup;
     }
 
+    /**
+     * Listen for requests on the specified port. This method should be called
+     * after all routes have been registerd because this method never returns.
+     *
+     * @example
+     *     const router = new Router();
+     *     router.get("/").handle(({ request, response }) => {
+     *         response.html("<h1>Hello World!</h1>");
+     *     });
+     *     router.listen(8000);
+     *     // GET http://localhost:8000 => Hello World!
+     */
     listen(port: number): void {
         const routes = this.buildRouteBuilders();
         const server = new Server(routes, "localhost", port);

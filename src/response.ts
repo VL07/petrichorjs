@@ -82,12 +82,20 @@ export class Response<R extends Path, M extends Method[] | null> {
         private readonly response: http.ServerResponse
     ) {}
 
+    /**
+     * Set one header on the response. To set multiple at the same time use the
+     * {@link headers} method.
+     *
+     * @example
+     *     response.header("Content-Type", "text/plain");
+     */
     header(name: string, value: string): this {
         this.response.setHeader(name, value);
 
         return this;
     }
 
+    /** Set multiple headers at once and overwrides existing ones. */
     headers(headers: Record<string, string>): this {
         for (const [name, value] of Object.entries(headers)) {
             this.response.setHeader(name, value);
@@ -96,12 +104,28 @@ export class Response<R extends Path, M extends Method[] | null> {
         return this;
     }
 
+    /**
+     * Sets the status code of the response
+     *
+     * @example
+     *     response.status(404); // Not found
+     *
+     * @see {@link https://developer.mozilla.org/en-US/docs/Web/HTTP/Status}
+     */
     status(statusCode: StatusCode): this {
         this.response.statusCode = statusCode;
 
         return this;
     }
 
+    /**
+     * Writes a chunk to the response, returns a promise that resolves when the
+     * client has handled the chunk
+     *
+     * @example
+     *     response.write("Hello World!"); // Send chunk
+     *     response.body(); // End connection
+     */
     write(chunk: any): Promise<this> {
         return new Promise((resolve, reject) => {
             this.response.write(chunk, (err) => {

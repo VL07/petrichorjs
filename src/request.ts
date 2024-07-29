@@ -4,6 +4,7 @@ import type { Method, Path } from "./router.js";
 import type { Parsed, ParserFunction, ParserFunctions } from "./builders.js";
 import { throwUnparseableError } from "./error.js";
 
+/** Handles query params for requests. */
 class QueryParams {
     private readonly queryParams: URLSearchParams;
 
@@ -38,15 +39,46 @@ class QueryParams {
     }
 }
 
+/** The request object for incomming requests. */
 export class Request<
     R extends Path,
     M extends Method[] | null,
     P extends Parsed<ParserFunctions>,
 > {
+    /**
+     * The url params with thire types.
+     *
+     * @example
+     *     router
+     *         .get("/users/:id/*?")
+     *         .parse({ id: intParser })
+     *         .handle(({ request, response }) => {
+     *             request.params; // { id: number, wildcard: string | undefined }
+     *         });
+     */
     readonly params: P;
+
+    /**
+     * The url of the request. Don't use this to get query params, instead use
+     * the `query` property of this request.
+     */
     readonly url: URL;
+
+    /** The http method used to make the request. It can be non standard. */
     readonly method: M extends Method[] ? M[number] : Method;
+
+    /** The headers sent with the request */
     readonly headers: Record<string, string>;
+
+    /**
+     * The url query params from the request
+     *
+     * @example
+     *     request.query.get("id"); // Get one query param
+     *     request.query.all(); // Get all query params
+     *
+     * @see {@link QueryParams}
+     */
     readonly query: QueryParams;
 
     private bodyString: string;
@@ -71,6 +103,15 @@ export class Request<
         return new URL(url, `http://${this.server.host}:${this.server.port}`);
     }
 
+    /**
+     * Await the request body and returns it as a string. This method can be
+     * used multiple times. To parse the request body as `json` use the
+     * {@link json} method on the request.
+     *
+     * @example
+     *     await request.body(); // Text body
+     *     await request.json(); // Parsed json body
+     */
     body(): Promise<string> | string {
         if (this.request.readableEnded) {
             return this.bodyString;
@@ -94,12 +135,14 @@ export class Request<
         });
     }
 
+    /** Same as the {@link body} method. */
     async text(): Promise<string> {
         const body = await this.body();
         return body;
     }
 
-    async json(): Promise<string> {
+    /** Gets the request body and parses it with `JSON.parse`. */
+    async json(): Promise<unknown> {
         const body = await this.body();
         return JSON.parse(body);
     }
