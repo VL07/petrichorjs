@@ -141,6 +141,17 @@ export const statusCodes = {
     NetworkAuthenticationRequired: 511,
 } as const;
 
+interface CookieOptions {
+    domail: string;
+    expires: Date;
+    httpOnly: boolean;
+    maxAge: number;
+    partitioned: boolean;
+    path: string;
+    sameSite: "Strict" | "Lax" | "None";
+    secure: boolean;
+}
+
 type StreamDataEventListener = (chunk: string) => Promise<void> | void;
 type StreamCloseEventListener = () => Promise<void> | void;
 
@@ -274,6 +285,55 @@ export class Response<R extends Path, M extends Method[] | null> {
     }
 
     /**
+     * Sets a cookie on the response headers.
+     *
+     * @example
+     *     response.cookie("session", "abc123");
+     *     response.cookie("session", "abc123", { ...options });
+     *
+     * @example
+     *     router.get("/").handle(({ request, response }) => {
+     *         const welcommedBefore =
+     *             request.cookies.get("welcommed") !== undefined;
+     *         response.cookie("welcommed", "true");
+     *
+     *         return response.ok().json({
+     *             message: welcommedBefore
+     *                 ? "Hello again!"
+     *                 : "Welcome to my site!",
+     *         });
+     *     });
+     *
+     * @see
+     * {@link https://developer.mozilla.org/en-US/docs/Web/HTTP/Headers/Set-Cookie}
+     */
+    cookie(
+        name: string,
+        value: string,
+        options?: Partial<CookieOptions>
+    ): this {
+        let optionsString = "";
+        if (options) {
+            optionsString += options.domail ? `; Domail=${options.domail}` : "";
+            optionsString += options.expires
+                ? `; Expires=${options.expires}`
+                : "";
+            optionsString += options.httpOnly ? `; HttpOnly` : "";
+            optionsString += options.maxAge ? `; MaxAge=${options.maxAge}` : "";
+            optionsString += options.partitioned ? `; Partitioned` : "";
+            optionsString += options.path ? `; Path=${options.path}` : "";
+            optionsString += options.sameSite
+                ? `; SameSite=${options.sameSite}`
+                : "";
+            optionsString += options.secure ? `; Secure` : "";
+        }
+
+        this.header("Set-Cookie", `${name}=${value}${optionsString}`);
+
+        return this;
+    }
+
+    /**
      * Creates a stream object and passes it to the callback function. The
      * `stream` streams data back to the client and can be used alongside
      * middleware.
@@ -330,9 +390,122 @@ export class Response<R extends Path, M extends Method[] | null> {
         this.body(body);
     }
 
-    /** Sets the status code to `200` */
+    /**
+     * Responds with a redirection response to the client. Use one of the
+     * redirect http codes `3**`. It also sets the `Location` response header.
+     *
+     * @example
+     *     router.get("/protected").handle(({ request, response }) => {
+     *         if (!isAuthenticated()) {
+     *             response.redirect(303, "/login");
+     *             return;
+     *         }
+     *     });
+     *
+     * @see
+     * {@link https://developer.mozilla.org/en-US/docs/Web/HTTP/Redirections}
+     */
+    redirect(code: RedirectStatusCode, location: string) {
+        this.status(code);
+        this.header("Location", location);
+    }
+
+    /**
+     * Sets the status code to `200` @see
+     * {@link https://developer.mozilla.org/en-US/docs/Web/HTTP/Status/200}
+     */
     ok(): this {
-        this.status(200);
+        this.status(statusCodes.Ok);
+
+        return this;
+    }
+
+    /**
+     * Sets the status code to `201` @see
+     * {@link https://developer.mozilla.org/en-US/docs/Web/HTTP/Status/201}
+     */
+    created(): this {
+        this.status(statusCodes.Created);
+
+        return this;
+    }
+
+    /**
+     * Sets the status code to `400` @see
+     * {@link https://developer.mozilla.org/en-US/docs/Web/HTTP/Status/400}
+     */
+    badRequest(): this {
+        this.status(statusCodes.BadRequest);
+
+        return this;
+    }
+
+    /**
+     * Sets the status code to `401` @see
+     * {@link https://developer.mozilla.org/en-US/docs/Web/HTTP/Status/401}
+     */
+    unauthorized(): this {
+        this.status(statusCodes.Unauthorized);
+
+        return this;
+    }
+
+    /**
+     * Sets the status code to `403` @see
+     * {@link https://developer.mozilla.org/en-US/docs/Web/HTTP/Status/403}
+     */
+    forbidden(): this {
+        this.status(statusCodes.Forbidden);
+
+        return this;
+    }
+
+    /**
+     * Sets the status code to `404` @see
+     * {@link https://developer.mozilla.org/en-US/docs/Web/HTTP/Status/404}
+     */
+    notFound(): this {
+        this.status(statusCodes.NotFound);
+
+        return this;
+    }
+
+    /**
+     * Sets the status code to `422` @see
+     * {@link https://developer.mozilla.org/en-US/docs/Web/HTTP/Status/422}
+     */
+    unprocessableContent(): this {
+        this.status(statusCodes.UnprocessableContent);
+
+        return this;
+    }
+
+    /**
+     * Sets the status code to `429` @see
+     * {@link https://developer.mozilla.org/en-US/docs/Web/HTTP/Status/429}
+     */
+    tooManyRequests(): this {
+        this.status(statusCodes.TooManyRequests);
+
+        return this;
+    }
+
+    /**
+     * Sets the status code to `500` @see
+     * {@link https://developer.mozilla.org/en-US/docs/Web/HTTP/Status/500}
+     */
+    internalServerError(): this {
+        this.status(statusCodes.InternalServerError);
+
+        return this;
+    }
+
+    /**
+     * Sets the status code to `501` @see
+     * {@link https://developer.mozilla.org/en-US/docs/Web/HTTP/Status/501}
+     */
+    notImplemented(): this {
+        this.status(statusCodes.NotImplemented);
 
         return this;
     }

@@ -6,6 +6,20 @@ const router = new Router();
 //     response.html("<h1>Welcome!</h1>");
 // });
 
+router.get("/").handle(({ request, response }) => {
+    const welcommedBefore = request.cookies.get("welcommed") !== undefined;
+    response.cookie("welcommed", "true");
+
+    return response.ok().json({
+        message: welcommedBefore ? "Hello again!" : "Welcome to my site!",
+    });
+});
+
+router.get("/protected").handle(({ request, response }) => {
+    const to = decodeURI(request.query.get("to") || "");
+    response.redirect(303, to || "/");
+});
+
 router
     .group("/")
     .before((request) => {
@@ -45,12 +59,12 @@ router
 //         response.html(`<h1>Userid: ${request.params.id}</h1>`);
 //     });
 
-// router.all("/*?").handle(({ request, response }) => {
-//     response.status(404).html(`
-//         <h1>Not found!</h1>
-//         <p>The page <code>${request.params.wildcard || "/"}</code> could not be found!</p>
-//     `);
-// });
+router.all("/*?").handle(({ request, response }) => {
+    response.notFound().html(`
+        <h1>Not found!</h1>
+        <p>The page <code>${request.params.wildcard || "/"}</code> could not be found!</p>
+    `);
+});
 
 // router
 //     .get("/stream")

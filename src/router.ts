@@ -699,7 +699,6 @@ export class Router<L extends Locals = {}> {
 
         for (const builder of this.groupBuilders) {
             for (const route of builder.build()) {
-                console.log(route);
                 route.middleware = [
                     ...this.middleware,
                     ...route.middleware,

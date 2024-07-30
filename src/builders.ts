@@ -498,21 +498,16 @@ export class RouteGroupBuilder<
         if (!this.routeGroup) throw "Route group builder needs to be handled!";
 
         const routes = this.routeGroup.build();
-        console.log("in route GROUP BUILDER", this.middleware);
 
         for (const route of routes) {
             route.middleware = [...this.middleware, ...route.middleware];
         }
-
-        console.log("PREPARSE", routes);
 
         if (!this.parsers) return routes;
 
         for (const route of routes) {
             route.parsers = { ...route.parsers, ...this.parsers };
         }
-
-        console.log("PARSED", routes);
 
         return routes;
     }
@@ -599,7 +594,6 @@ class RouteGroupBackend<
         const routes: Route[] = [];
         for (const builder of this.routeBuilders) {
             const built = builder.build();
-            console.log("in backend", built);
             routes.push(...built);
         }
 
