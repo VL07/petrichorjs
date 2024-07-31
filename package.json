@@ -5,6 +5,7 @@
     "main": "dist/index.js",
     "types": "dist/index.d.ts",
     "type": "module",
+    "homepage": "https://github.com/VL07/petrichor",
     "scripts": {
         "build": "npx tsc",
         "lint": "npx eslint .",
