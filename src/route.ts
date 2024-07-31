@@ -1,14 +1,12 @@
 import {
     HandlerFunction,
     HandlerFunctionArguments,
-    Middleware,
     MiddlewareContext,
     MiddlewareOrBefore,
     NextFunction,
-    Parsed,
     ParserFunctions,
 } from "./builders.js";
-import { HttpError, UnparseableError } from "./error.js";
+import { HttpError } from "./error.js";
 import type { Method, Path } from "./router.js";
 
 export class Route {
@@ -19,18 +17,25 @@ export class Route {
         private readonly handler: HandlerFunction<
             Path,
             Method[] | null,
-            any,
-            any
+            NonNullable<unknown>,
+            NonNullable<unknown>
         >,
         public middleware: MiddlewareOrBefore[]
     ) {}
 
     async handleRequest(
-        params: HandlerFunctionArguments<Path, Method[] | null, any, any>
+        params: HandlerFunctionArguments<
+            Path,
+            Method[] | null,
+            NonNullable<unknown>,
+            NonNullable<unknown>
+        >
     ) {
-        const handleHandler = () => {
+        const tryOrPopulateErrorResponse = async (
+            fn: () => Promise<void> | void
+        ) => {
             try {
-                this.handler(params);
+                await fn();
             } catch (err) {
                 if (err instanceof HttpError) {
                     params.response
@@ -49,21 +54,43 @@ export class Route {
             response: params.response,
         };
 
-        console.log(this.middleware);
-
-        const nextFunctions: NextFunction[] = [() => handleHandler()];
+        const nextFunctions: NextFunction[] = [
+            () =>
+                tryOrPopulateErrorResponse(() =>
+                    this.handler({
+                        request: params.request,
+                        response: params.response,
+                    })
+                ),
+        ];
         for (const [i, middleware] of this.middleware.entries()) {
             if (middleware.type === "Middleware") {
                 nextFunctions.push(() =>
-                    middleware.middleware(context, nextFunctions[i])
+                    tryOrPopulateErrorResponse(() =>
+                        middleware.middleware(context, nextFunctions[i])
+                    )
                 );
             } else {
                 nextFunctions.push(async () => {
-                    context.request.locals = {
-                        ...context.request.locals,
-                        ...((await middleware.before(context.request)) || {}),
-                    };
-                    nextFunctions[i]();
+                    try {
+                        context.request.locals = {
+                            ...context.request.locals,
+                            ...((await middleware.before(context.request)) ||
+                                {}),
+                        };
+                    } catch (err) {
+                        if (err instanceof HttpError) {
+                            params.response
+                                .status(err.status)
+                                .json(err.toResponseJson());
+
+                            return;
+                        }
+
+                        throw err;
+                    }
+
+                    await nextFunctions[i]();
                 });
             }
         }

@@ -7,7 +7,8 @@ import type {
     ParserFunction,
     ParserFunctions,
 } from "./builders.js";
-import { throwUnparseableError } from "./error.js";
+import { HttpError, throwUnparseableError } from "./error.js";
+import { statusCodes } from "./response.js";
 
 /** Handles query params for requests. */
 class QueryParams {
@@ -90,7 +91,7 @@ class Cookies {
 
 /** The request object for incomming requests. */
 export class Request<
-    R extends Path,
+    R extends Path | null,
     M extends Method[] | null,
     P extends Parsed<ParserFunctions>,
     L extends Locals,
@@ -113,6 +114,22 @@ export class Request<
      * the `query` property of this request.
      */
     readonly url: URL;
+
+    /**
+     * The path requested by the client, unlike the {@link url} parameter this
+     * one is the completely unparsed path requested by the client.
+     */
+    requestedPath: string;
+
+    /**
+     * The path specified for this route in the router.
+     *
+     * @example
+     *     router.get("/users/:id").handle(({ request, response }) => {
+     *         request.routerPath; // "/users/:id"
+     *     });
+     */
+    routerPath: R;
 
     /** The http method used to make the request. It can be non standard. */
     readonly method: M extends Method[] ? M[number] : Method;
@@ -163,7 +180,8 @@ export class Request<
         private readonly server: Server,
         private readonly request: http.IncomingMessage,
         params: P,
-        locals: L
+        locals: L,
+        routerPath: R
     ) {
         this.params = params;
         this.locals = locals;
@@ -176,7 +194,8 @@ export class Request<
         this.cookies = new Cookies(
             this.headers.Cookie || this.headers.cookie || ""
         );
-        console.log(this.headers);
+        this.requestedPath = request.url || "/";
+        this.routerPath = routerPath;
 
         this.bodyString = "";
     }
@@ -200,7 +219,7 @@ export class Request<
         }
 
         return new Promise((resolve, reject) => {
-            const chunks: any[] = [];
+            const chunks: Uint8Array[] = [];
             this.request.on("data", (chunk) => {
                 chunks.push(chunk);
             });
@@ -226,6 +245,13 @@ export class Request<
     /** Gets the request body and parses it with `JSON.parse`. */
     async json(): Promise<unknown> {
         const body = await this.body();
-        return JSON.parse(body);
+        try {
+            return JSON.parse(body);
+        } catch {
+            throw new HttpError(
+                statusCodes.UnprocessableContent,
+                "Expected JSON body!"
+            );
+        }
     }
 }

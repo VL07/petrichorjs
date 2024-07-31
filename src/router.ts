@@ -129,7 +129,7 @@ export class RouteGroup {
             return;
         }
 
-        let existingMethod = this.routes.get(route.method);
+        const existingMethod = this.routes.get(route.method);
         if (existingMethod)
             throw `Only one route per path and method can be created! Path: '${existingMethod.path}'`;
 
@@ -321,7 +321,7 @@ export class RouteGroup {
     getRouteFromPath(
         path: Path,
         method: Method
-    ): { route: Route; params: Record<string, any> } | undefined {
+    ): { route: Route; params: Record<string, unknown> } | undefined {
         const slug = this.getFirstSlugOfPath(path);
 
         if (slug === "") {
@@ -405,7 +405,7 @@ export class RouteGroup {
         slug: string,
         restPath: Path,
         method: Method
-    ): { route: Route; params: Record<string, any> } | undefined {
+    ): { route: Route; params: Record<string, unknown> } | undefined {
         const staticChildGroupsMethod =
             this.staticChildGroups.get(method) ||
             this.staticChildGroupsMethodWildcard;
@@ -421,7 +421,7 @@ export class RouteGroup {
         slug: string,
         restPath: Path,
         method: Method
-    ): { route: Route; params: Record<string, any> } | undefined {
+    ): { route: Route; params: Record<string, unknown> } | undefined {
         const dynamicChildGroupsMethod =
             this.dynamicChildGroups.get(method) ||
             this.dynamicChildGroupsMethodWildcard;
@@ -469,7 +469,7 @@ export class RouteGroup {
     private getRouteFromWildcardChildGroup(
         path: Path,
         method: Method
-    ): { route: Route; params: Record<string, any> } | undefined {
+    ): { route: Route; params: Record<string, unknown> } | undefined {
         const wildcardChildGroupsMethod =
             this.wildcardChildRoutes.get(method) ||
             this.wildcardChildRoutesMethodWildcard;
@@ -535,7 +535,7 @@ export class RouteGroup {
  * router.get("/users/:id").handle(({ request, response }) => {});
  * ```
  */
-export class Router<L extends Locals = {}> {
+export class Router<L extends Locals = NonNullable<unknown>> {
     private readonly routeBuilders: BuildableToRoutes[] = [];
     private readonly groupBuilders: BuildableToRoutes[] = [];
     private middleware: MiddlewareOrBefore[] = [];
@@ -543,7 +543,14 @@ export class Router<L extends Locals = {}> {
     constructor() {}
 
     /** Handle `get` requests. Shorthand for the `router.on("GET", ...)` method. */
-    get<R extends Path>(route: R): RouteBuilderUnparsed<R, ["GET"], {}, {}> {
+    get<R extends Path>(
+        route: R
+    ): RouteBuilderUnparsed<
+        R,
+        ["GET"],
+        NonNullable<unknown>,
+        NonNullable<unknown>
+    > {
         return this.on("GET", route);
     }
 
@@ -551,12 +558,26 @@ export class Router<L extends Locals = {}> {
      * Handle `post` requests. Shorthand for the `router.on("POST", ...)`
      * method.
      */
-    post<R extends Path>(route: R): RouteBuilderUnparsed<R, ["POST"], {}, {}> {
+    post<R extends Path>(
+        route: R
+    ): RouteBuilderUnparsed<
+        R,
+        ["POST"],
+        NonNullable<unknown>,
+        NonNullable<unknown>
+    > {
         return this.on("POST", route);
     }
 
     /** Handle `put` requests. Shorthand for the `router.on("PUT", ...)` method. */
-    put<R extends Path>(route: R): RouteBuilderUnparsed<R, ["PUT"], {}, {}> {
+    put<R extends Path>(
+        route: R
+    ): RouteBuilderUnparsed<
+        R,
+        ["PUT"],
+        NonNullable<unknown>,
+        NonNullable<unknown>
+    > {
         return this.on("PUT", route);
     }
 
@@ -566,7 +587,12 @@ export class Router<L extends Locals = {}> {
      */
     delete<R extends Path>(
         route: R
-    ): RouteBuilderUnparsed<R, ["DELETE"], {}, {}> {
+    ): RouteBuilderUnparsed<
+        R,
+        ["DELETE"],
+        NonNullable<unknown>,
+        NonNullable<unknown>
+    > {
         return this.on("DELETE", route);
     }
 
@@ -584,8 +610,18 @@ export class Router<L extends Locals = {}> {
     on<M extends Method, R extends Path>(
         method: M,
         route: R
-    ): RouteBuilderUnparsed<R, [M], {}, {}> {
-        const builder = new RouteBuilder<R, [M], {}, {}>(route, [method]);
+    ): RouteBuilderUnparsed<
+        R,
+        [M],
+        NonNullable<unknown>,
+        NonNullable<unknown>
+    > {
+        const builder = new RouteBuilder<
+            R,
+            [M],
+            NonNullable<unknown>,
+            NonNullable<unknown>
+        >(route, [method]);
         this.routeBuilders.push(builder);
 
         return builder;
@@ -601,8 +637,18 @@ export class Router<L extends Locals = {}> {
      *         console.log(request.params.wildcard);
      *     });
      */
-    all<R extends Path>(route: R): RouteBuilderUnparsedAllMethods<R, {}, {}> {
-        const builder = new RouteBuilderAllMethods<R, {}, {}>(route);
+    all<R extends Path>(
+        route: R
+    ): RouteBuilderUnparsedAllMethods<
+        R,
+        NonNullable<unknown>,
+        NonNullable<unknown>
+    > {
+        const builder = new RouteBuilderAllMethods<
+            R,
+            NonNullable<unknown>,
+            NonNullable<unknown>
+        >(route);
         this.routeBuilders.push(builder);
 
         return builder;
@@ -636,28 +682,32 @@ export class Router<L extends Locals = {}> {
     /**
      * A middleware that only has access to the request and runs before the
      * route is handled. It can change request `locals` by returning a object of
-     * the `locals`. **Always assign the router valiable after using this or the
-     * type checking won't work as expected!**
+     * the `locals`. It can also end requests early by throwing a HttpError
+     * which will later populate the response. **Always assign the router
+     * valiable after using this or the type checking won't work as expected!**
      *
      * @example
      *     const router = new Router().before(async (request) => {
+     *         const user = await getUser(request);
+     *         if (!user) throw new HttpError(401, "Unauthorized");
+     *
      *         return {
-     *             user: await getUser(request),
+     *             user: user,
      *         };
      *     });
      *     router.get("/").handle(({ request, response }) => {
      *         console.log(request.locals); // { user: User }
      *     });
      */
-    before<T extends BeforeFunction>(
+    before<T extends BeforeFunction<"/", NonNullable<unknown>>>(
         beforeFunction: T
-    ): Router<JoinLocals<T, L>> {
+    ): Router<JoinLocals<"/", T, L, NonNullable<unknown>>> {
         this.middleware.push({
             type: "Before",
             before: beforeFunction,
         });
 
-        return this as Router<JoinLocals<T, L>>;
+        return this as Router<JoinLocals<"/", T, L, NonNullable<unknown>>>;
     }
 
     /**
@@ -677,8 +727,18 @@ export class Router<L extends Locals = {}> {
      *         })
      *         .handle();
      */
-    group<R extends Path>(path: R): RouteGroupBuilderUnparsed<R, {}, {}> {
-        const builder = new RouteGroupBuilder<R, {}, {}>(path);
+    group<R extends Path>(
+        path: R
+    ): RouteGroupBuilderUnparsed<
+        R,
+        NonNullable<unknown>,
+        NonNullable<unknown>
+    > {
+        const builder = new RouteGroupBuilder<
+            R,
+            NonNullable<unknown>,
+            NonNullable<unknown>
+        >(path);
         this.groupBuilders.push(builder);
 
         return builder;
@@ -724,7 +784,12 @@ export class Router<L extends Locals = {}> {
      */
     listen(port: number): void {
         const routes = this.buildRouteBuilders();
-        const server = new Server(routes, "localhost", port);
+        const server = new Server(
+            routes,
+            "localhost",
+            port,
+            this.middleware.slice().reverse()
+        );
         server.listen();
     }
 }

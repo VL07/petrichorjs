@@ -30,7 +30,9 @@ type DynamicEndRoute<T extends Path> = T extends `/:${infer Name}`
 type StaticRoute<T extends Path> = T extends `/${string}/${infer Rest}`
     ? Params<`/${Rest}`>
     : StaticEndRoute<T>;
-type StaticEndRoute<T extends Path> = T extends `/${string}` ? {} : {};
+type StaticEndRoute<T extends Path> = T extends `/${string}`
+    ? NonNullable<unknown>
+    : NonNullable<unknown>;
 
 /** Get the params, and thire value, from a path */
 type Params<T extends Path> = DynamicOptionalWildcardRoute<T>;
@@ -72,14 +74,12 @@ type ExcludeAlreadyParsed<
 > = Omit<Params<R>, keyof P>;
 
 export type ParserFunctions =
-    | Record<string, ParserFunction<any>>
-    | ParserFunctionsForPath<Path, any>;
-
-type A =
-    ParserFunctionsForPath<"/:a", {}> extends ParserFunctions ? true : false;
+    | Record<string, ParserFunction<NonNullable<unknown>>>
+    | ParserFunctionsForPath<Path, NonNullable<unknown>>;
 
 /** Get the return type for the parser functions */
 export type Parsed<T extends ParserFunctions> = {
+    // eslint-disable-next-line @typescript-eslint/no-explicit-any
     [K in keyof T]: T[K] extends (...args: any) => any
         ? ReturnType<T[K]>
         : undefined;
@@ -113,7 +113,7 @@ export type NextFunction = () => Promise<void> | void;
 
 export interface MiddlewareContext {
     request: Request<
-        Path,
+        Path | null,
         Method[] | null,
         Record<string, unknown>,
         Record<string, unknown>
@@ -128,7 +128,7 @@ export type MiddlewareOrBefore =
       }
     | {
           type: "Before";
-          before: BeforeFunction;
+          before: BeforeFunction<Path, Parsed<ParserFunctions>>;
       };
 
 export type Middleware = (
@@ -138,20 +138,25 @@ export type Middleware = (
 
 export type Locals = Record<string, unknown>;
 
-export type BeforeFunction = (
+export type BeforeFunction<
+    R extends Path,
+    P extends Parsed<ParserFunctions>,
+    Re extends Locals = Record<string, unknown>,
+> = (
     request: Request<
-        Path,
+        Path | null,
         [Method],
-        Parsed<ParserFunctions>,
+        DefaultOrParsedParams<R, P>,
         Record<string, unknown>
     >
-) => Promise<Locals> | Locals | Promise<void> | void;
+) => Re extends never ? Promise<Locals> | Locals | Promise<void> | void : Re;
 
-export type JoinLocals<T extends BeforeFunction, U extends Locals> = Omit<
-    U,
-    keyof Awaited<ReturnType<T>>
-> &
-    Awaited<ReturnType<T>>;
+export type JoinLocals<
+    R extends Path,
+    T extends BeforeFunction<R, P>,
+    U extends Locals,
+    P extends Parsed<ParserFunctions>,
+> = Omit<U, keyof Awaited<ReturnType<T>>> & Awaited<ReturnType<T>>;
 
 /** Join two paths together */
 type JoinPaths<A extends Path, B extends Path> = A extends "/"
@@ -172,6 +177,10 @@ interface RouteBuilderParsedAllMethods<
     L extends Locals,
 > {
     handle(handler: HandlerFunction<R, null, P, L>): void;
+    use(middleware: Middleware): this;
+    before<T extends BeforeFunction<R, P>>(
+        beforeFunction: T
+    ): RouteBuilderUnparsedAllMethods<R, P, JoinLocals<R, T, L, P>>;
 }
 
 export interface RouteBuilderUnparsedAllMethods<
@@ -180,9 +189,9 @@ export interface RouteBuilderUnparsedAllMethods<
     L extends Locals,
 > extends RouteBuilderParsedAllMethods<R, P, L> {
     use(middleware: Middleware): this;
-    before<T extends BeforeFunction>(
+    before<T extends BeforeFunction<R, P>>(
         beforeFunction: T
-    ): RouteBuilderUnparsedAllMethods<R, P, JoinLocals<T, L>>;
+    ): RouteBuilderUnparsedAllMethods<R, P, JoinLocals<R, T, L, P>>;
     parse<T extends ParserFunctionsForPath<R, P>>(
         parsers: T
     ): RouteBuilderParsedAllMethods<R, P & Parsed<T>, L>;
@@ -211,6 +220,10 @@ interface RouteBuilderParsed<
      * @see {@link Response}
      */
     handle(handler: HandlerFunction<R, M, P, L>): void;
+    use(middleware: Middleware): this;
+    before<T extends BeforeFunction<R, P>>(
+        beforeFunction: T
+    ): RouteBuilderUnparsed<R, M, P, JoinLocals<R, T, L, P>>;
 }
 
 export interface RouteBuilderUnparsed<
@@ -220,9 +233,9 @@ export interface RouteBuilderUnparsed<
     L extends Locals,
 > extends RouteBuilderParsed<R, M, P, L> {
     use(middleware: Middleware): this;
-    before<T extends BeforeFunction>(
+    before<T extends BeforeFunction<R, P>>(
         beforeFunction: T
-    ): RouteBuilderUnparsed<R, M, P, JoinLocals<T, L>>;
+    ): RouteBuilderUnparsed<R, M, P, JoinLocals<R, T, L, P>>;
     on<T extends Method>(method: T): RouteBuilderUnparsed<R, [...M, T], P, L>;
     get(): RouteBuilderUnparsed<R, [...M, "GET"], P, L>;
     post(): RouteBuilderUnparsed<R, [...M, "POST"], P, L>;
@@ -240,6 +253,10 @@ interface RouteGroupBuilderParsed<
 > {
     /** @see {@link RouteBuilderParsed.handle} */
     handle(): RouteGroup<R, P, L>;
+    use(middleware: Middleware): this;
+    before<T extends BeforeFunction<R, P>>(
+        beforeFunction: T
+    ): RouteGroupBuilderUnparsed<R, P, JoinLocals<R, T, L, P>>;
 }
 
 export interface RouteGroupBuilderUnparsed<
@@ -248,9 +265,9 @@ export interface RouteGroupBuilderUnparsed<
     L extends Locals,
 > extends RouteGroupBuilderParsed<R, P, L> {
     use(middleware: Middleware): this;
-    before<T extends BeforeFunction>(
+    before<T extends BeforeFunction<R, P>>(
         beforeFunction: T
-    ): RouteGroupBuilderUnparsed<R, P, JoinLocals<T, L>>;
+    ): RouteGroupBuilderUnparsed<R, P, JoinLocals<R, T, L, P>>;
     parse<T extends ParserFunctionsForPath<R, P>>(
         parsers: T
     ): RouteGroupBuilderParsed<R, P & Parsed<T>, L>;
@@ -319,19 +336,22 @@ export class RouteBuilder<
         return this;
     }
 
-    before<T extends BeforeFunction>(
+    before<T extends BeforeFunction<R, P>>(
         beforeFunction: T
-    ): RouteBuilderUnparsed<R, M, P, JoinLocals<T, L>> {
+    ): RouteBuilderUnparsed<R, M, P, JoinLocals<R, T, L, P>> {
         this.middleware.push({
             type: "Before",
-            before: beforeFunction,
+            before: beforeFunction as BeforeFunction<
+                Path,
+                Parsed<ParserFunctions>
+            >,
         });
 
         return this as unknown as RouteBuilderUnparsed<
             R,
             M,
             P,
-            JoinLocals<T, L>
+            JoinLocals<R, T, L, P>
         >;
     }
 
@@ -370,7 +390,12 @@ export class RouteBuilder<
                     this.path,
                     method,
                     this.parsers || {},
-                    this.handler,
+                    this.handler as HandlerFunction<
+                        Path,
+                        Method[] | null,
+                        NonNullable<unknown>,
+                        NonNullable<unknown>
+                    >,
                     this.middleware.slice()
                 )
             );
@@ -412,18 +437,21 @@ export class RouteBuilderAllMethods<
         return this;
     }
 
-    before<T extends BeforeFunction>(
+    before<T extends BeforeFunction<R, P>>(
         beforeFunction: T
-    ): RouteBuilderUnparsedAllMethods<R, P, JoinLocals<T, L>> {
+    ): RouteBuilderUnparsedAllMethods<R, P, JoinLocals<R, T, L, P>> {
         this.middleware.push({
             type: "Before",
-            before: beforeFunction,
+            before: beforeFunction as BeforeFunction<
+                Path,
+                Parsed<ParserFunctions>
+            >,
         });
 
         return this as unknown as RouteBuilderUnparsedAllMethods<
             R,
             P,
-            JoinLocals<T, L>
+            JoinLocals<R, T, L, P>
         >;
     }
 
@@ -439,7 +467,12 @@ export class RouteBuilderAllMethods<
                 this.path,
                 null,
                 this.parsers || {},
-                this.handler,
+                this.handler as HandlerFunction<
+                    Path,
+                    Method[] | null,
+                    NonNullable<unknown>,
+                    NonNullable<unknown>
+                >,
                 this.middleware.slice()
             ),
         ];
@@ -474,18 +507,21 @@ export class RouteGroupBuilder<
         return this;
     }
 
-    before<T extends BeforeFunction>(
+    before<T extends BeforeFunction<R, P>>(
         beforeFunction: T
-    ): RouteGroupBuilderUnparsed<R, P, JoinLocals<T, L>> {
+    ): RouteGroupBuilderUnparsed<R, P, JoinLocals<R, T, L, P>> {
         this.middleware.push({
             type: "Before",
-            before: beforeFunction,
+            before: beforeFunction as BeforeFunction<
+                Path,
+                Parsed<ParserFunctions>
+            >,
         });
 
         return this as unknown as RouteGroupBuilderUnparsed<
             R,
             P,
-            JoinLocals<T, L>
+            JoinLocals<R, T, L, P>
         >;
     }
 

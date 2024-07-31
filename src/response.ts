@@ -1,9 +1,9 @@
 import http from "http";
-import type { Method, Path } from "./router";
-import type { Server } from "./server";
+import type { Method, Path } from "./router.js";
+import type { Server } from "./server.js";
 
-type InfoStatusCode = 100 | 101 | 102 | 103;
-type SuccessStatusCode =
+export type InfoStatusCode = 100 | 101 | 102 | 103;
+export type SuccessStatusCode =
     | 200
     | 201
     | 202
@@ -14,8 +14,8 @@ type SuccessStatusCode =
     | 207
     | 208
     | 226;
-type RedirectStatusCode = 300 | 301 | 302 | 303 | 304 | 307 | 308;
-type ClientErrorStatusCode =
+export type RedirectStatusCode = 300 | 301 | 302 | 303 | 304 | 307 | 308;
+export type ClientErrorStatusCode =
     | 400
     | 401
     | 402
@@ -45,7 +45,7 @@ type ClientErrorStatusCode =
     | 429
     | 431
     | 451;
-type ServerErrorStatusCode =
+export type ServerErrorStatusCode =
     | 500
     | 501
     | 502
@@ -155,7 +155,16 @@ interface CookieOptions {
 type StreamDataEventListener = (chunk: string) => Promise<void> | void;
 type StreamCloseEventListener = () => Promise<void> | void;
 
-class Stream<R extends Path, M extends Method[] | null> {
+export type JsonValue =
+    | string
+    | number
+    | boolean
+    | null
+    | undefined
+    | JsonValue[]
+    | { [key: string]: JsonValue };
+
+class Stream<R extends Path | null, M extends Method[] | null> {
     private onDataListeners: StreamDataEventListener[] = [];
     private onCloseListeners: StreamCloseEventListener[] = [];
 
@@ -239,7 +248,7 @@ class Stream<R extends Path, M extends Method[] | null> {
     }
 }
 
-export class Response<R extends Path, M extends Method[] | null> {
+export class Response<R extends Path | null, M extends Method[] | null> {
     stream: Stream<R, M> | undefined;
     content: string | undefined;
 
@@ -379,7 +388,7 @@ export class Response<R extends Path, M extends Method[] | null> {
      * Same as {@link body} but sets the `Content-Type` header to
      * `application/json`
      */
-    json(body: Record<string, unknown> | Record<string, unknown>[]): void {
+    json(body: unknown): void {
         this.header(HEADERS.contentType.name, HEADERS.contentType.values.json);
         this.body(JSON.stringify(body));
     }

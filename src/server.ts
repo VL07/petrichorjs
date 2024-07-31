@@ -2,7 +2,12 @@ import http from "http";
 import { Path, RouteGroup } from "./router.js";
 import { Request } from "./request.js";
 import { Response } from "./response.js";
-import { UnparseableError } from "./error.js";
+import {
+    MiddlewareContext,
+    MiddlewareOrBefore,
+    NextFunction,
+} from "./builders.js";
+import { HttpError } from "./error.js";
 
 export class Server {
     private readonly server: http.Server;
@@ -10,7 +15,8 @@ export class Server {
     constructor(
         private readonly baseRouteGroup: RouteGroup,
         readonly host: string,
-        readonly port: number
+        readonly port: number,
+        readonly routerMiddleware: MiddlewareOrBefore[]
     ) {
         this.server = http.createServer((request, response) =>
             this.requestHandler(request, response)
@@ -40,13 +46,91 @@ export class Server {
             request.method
         );
 
+        const parsedResponse = new Response(this, response);
+
         if (!route) {
-            response.writeHead(404).end();
+            const parsedRequest = new Request(this, request, {}, {}, null);
+
+            const context: MiddlewareContext = {
+                request: parsedRequest,
+                response: parsedResponse,
+            };
+
+            const tryOrPopulateErrorResponse = async (
+                fn: () => Promise<void> | void
+            ) => {
+                try {
+                    await fn();
+                } catch (err) {
+                    if (err instanceof HttpError) {
+                        context.response
+                            .status(err.status)
+                            .json(err.toResponseJson());
+
+                        return;
+                    }
+
+                    throw err;
+                }
+            };
+
+            const nextFunctions: NextFunction[] = [
+                () =>
+                    context.response.notFound().json({
+                        message: "Not found!",
+                    }),
+            ];
+            for (const [i, middleware] of this.routerMiddleware.entries()) {
+                if (middleware.type === "Middleware") {
+                    nextFunctions.push(() =>
+                        tryOrPopulateErrorResponse(() =>
+                            middleware.middleware(context, nextFunctions[i])
+                        )
+                    );
+                } else {
+                    nextFunctions.push(async () => {
+                        try {
+                            context.request.locals = {
+                                ...context.request.locals,
+                                ...((await middleware.before(
+                                    context.request
+                                )) || {}),
+                            };
+                        } catch (err) {
+                            if (err instanceof HttpError) {
+                                context.response
+                                    .status(err.status)
+                                    .json(err.toResponseJson());
+
+                                return;
+                            }
+
+                            throw err;
+                        }
+
+                        await nextFunctions[i]();
+                    });
+                }
+            }
+
+            await nextFunctions.at(-1)!();
+
+            if (parsedResponse.stream) {
+                await parsedResponse.stream.start();
+            } else {
+                response.end(parsedResponse.content);
+            }
+
             return;
         }
 
-        const parsedRequest = new Request(this, request, route?.params, {});
-        const parsedResponse = new Response(this, response);
+        const parsedRequest = new Request(
+            this,
+            request,
+            route.params,
+            {},
+            route.route.path
+        );
 
         await route.route.handleRequest({
             request: parsedRequest,

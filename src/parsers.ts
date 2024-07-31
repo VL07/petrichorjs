@@ -1,4 +1,4 @@
-import { CustomParserFunction } from "./builders";
+import { CustomParserFunction } from "./builders.js";
 
 /**
  * Parse a param and ensure it's a number, uses the parseInt function under the
