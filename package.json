@@ -8,7 +8,7 @@
     "homepage": "https://github.com/VL07/petrichorjs#readme",
     "repository": {
         "type": "git",
-        "url": "https://github.com/VL07/petrichorjs"
+        "url": "git+https://github.com/VL07/petrichorjs.git"
     },
     "scripts": {
         "build": "npx tsc",
