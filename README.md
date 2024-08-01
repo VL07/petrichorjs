@@ -1,4 +1,4 @@
-# Petrichor
+# PetrichorJs
 
 The simple type safe web server framework written in TypeScript with zero dependencies. 
 

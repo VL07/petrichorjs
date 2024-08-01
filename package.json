@@ -1,14 +1,14 @@
 {
-    "name": "petrichor",
+    "name": "petrichorjs",
     "version": "0.1.0",
     "license": "MIT",
     "main": "dist/index.js",
     "types": "dist/index.d.ts",
     "type": "module",
-    "homepage": "https://github.com/VL07/petrichor#readme",
+    "homepage": "https://github.com/VL07/petrichorjs#readme",
     "repository": {
         "type": "git",
-        "url": "https://github.com/VL07/petrichor"
+        "url": "https://github.com/VL07/petrichorjs"
     },
     "scripts": {
         "build": "npx tsc",
