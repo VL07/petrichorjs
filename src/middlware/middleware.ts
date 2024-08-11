@@ -30,3 +30,4 @@ export function beforeFunction<
 >(beforeFunction: T): T {
     return beforeFunction;
 }
+

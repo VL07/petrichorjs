@@ -549,6 +549,7 @@ export class Router<L extends Locals = NonNullable<unknown>> {
         R,
         ["GET"],
         NonNullable<unknown>,
+        NonNullable<unknown>,
         NonNullable<unknown>
     > {
         return this.on("GET", route);
@@ -564,6 +565,7 @@ export class Router<L extends Locals = NonNullable<unknown>> {
         R,
         ["POST"],
         NonNullable<unknown>,
+        NonNullable<unknown>,
         NonNullable<unknown>
     > {
         return this.on("POST", route);
@@ -575,6 +577,7 @@ export class Router<L extends Locals = NonNullable<unknown>> {
     ): RouteBuilderUnparsed<
         R,
         ["PUT"],
+        NonNullable<unknown>,
         NonNullable<unknown>,
         NonNullable<unknown>
     > {
@@ -590,6 +593,7 @@ export class Router<L extends Locals = NonNullable<unknown>> {
     ): RouteBuilderUnparsed<
         R,
         ["DELETE"],
+        NonNullable<unknown>,
         NonNullable<unknown>,
         NonNullable<unknown>
     > {
@@ -614,11 +618,13 @@ export class Router<L extends Locals = NonNullable<unknown>> {
         R,
         [M],
         NonNullable<unknown>,
+        NonNullable<unknown>,
         NonNullable<unknown>
     > {
         const builder = new RouteBuilder<
             R,
             [M],
+            NonNullable<unknown>,
             NonNullable<unknown>,
             NonNullable<unknown>
         >(route, [method]);
@@ -642,10 +648,12 @@ export class Router<L extends Locals = NonNullable<unknown>> {
     ): RouteBuilderUnparsedAllMethods<
         R,
         NonNullable<unknown>,
+        NonNullable<unknown>,
         NonNullable<unknown>
     > {
         const builder = new RouteBuilderAllMethods<
             R,
+            NonNullable<unknown>,
             NonNullable<unknown>,
             NonNullable<unknown>
         >(route);
@@ -699,9 +707,13 @@ export class Router<L extends Locals = NonNullable<unknown>> {
      *         console.log(request.locals); // { user: User }
      *     });
      */
-    before<T extends BeforeFunction<"/", NonNullable<unknown>>>(
-        beforeFunction: T
-    ): Router<JoinLocals<"/", T, L, NonNullable<unknown>>> {
+    before<
+        T extends BeforeFunction<
+            "/",
+            NonNullable<unknown>,
+            NonNullable<unknown>
+        >,
+    >(beforeFunction: T): Router<JoinLocals<"/", T, L, NonNullable<unknown>>> {
         this.middleware.push({
             type: "Before",
             before: beforeFunction,
@@ -732,10 +744,12 @@ export class Router<L extends Locals = NonNullable<unknown>> {
     ): RouteGroupBuilderUnparsed<
         R,
         NonNullable<unknown>,
+        NonNullable<unknown>,
         NonNullable<unknown>
     > {
         const builder = new RouteGroupBuilder<
             R,
+            NonNullable<unknown>,
             NonNullable<unknown>,
             NonNullable<unknown>
         >(path);
@@ -793,3 +807,4 @@ export class Router<L extends Locals = NonNullable<unknown>> {
         server.listen();
     }
 }
+
