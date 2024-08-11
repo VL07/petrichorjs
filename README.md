@@ -27,7 +27,7 @@ import {
   Router,
   statusCodes,
   trailingSlash,
-} from "simpleserver";
+} from "petrichorjs";
 
 const getUserBeforeFunction = beforeFunction<{ id: number }, { user: User }>(
   (request) => {
