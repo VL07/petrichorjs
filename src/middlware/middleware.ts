@@ -1,6 +1,5 @@
 import { BeforeFunction, Locals, Middleware } from "../builders.js";
 import { Path } from "../router.js";
-import { Validators } from "../validate.js";
 
 /**
  * Wrap the middleware function in this function to get typechecking.
@@ -27,12 +26,7 @@ export function middleware<T extends Middleware>(middlewareFunction: T): T {
 export function beforeFunction<
     P extends Record<string, unknown>,
     R extends Locals,
-    T extends BeforeFunction<Path, P, Validators, R> = BeforeFunction<
-        Path,
-        P,
-        Validators,
-        R
-    >,
+    T extends BeforeFunction<Path, P, R> = BeforeFunction<Path, P, R>,
 >(beforeFunction: T): T {
     return beforeFunction;
 }

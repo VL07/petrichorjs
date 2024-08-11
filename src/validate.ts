@@ -16,7 +16,9 @@ export type ValidatorResponse<T> =
     | ValidatorResponseSuccess<T>
     | ValidatorResponseFail;
 
-export type ValidatorFunction<T> = (data: unknown) => ValidatorResponse<T>;
+export type ValidatorFunction<T, U = unknown> = (
+    data: U
+) => ValidatorResponse<T>;
 
 export type ValidatorType = "body" | "query";
 
@@ -34,7 +36,8 @@ export type JoinValidators<T extends Validators, U extends Validators> = T &
     Omit<U, keyof T>;
 
 export type ValidatorFunctions = Partial<{
-    [K in ValidatorType]: ValidatorFunction<unknown>;
+    body: ValidatorFunction<unknown>;
+    query: ValidatorFunction<Record<string, unknown>, Record<string, unknown>>;
 }>;
 
 export type ValidatedFunctions<T extends ValidatorFunctions> = {
@@ -42,4 +45,11 @@ export type ValidatedFunctions<T extends ValidatorFunctions> = {
         ? Validated<T[K]>
         : never;
 };
+
+export type UnvalidatedFunctions<T extends Validators> = keyof Omit<
+    ValidatorFunctions,
+    keyof T
+> extends never
+    ? never
+    : Omit<ValidatorFunctions, keyof T>;
 

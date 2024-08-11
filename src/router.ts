@@ -713,19 +713,13 @@ export class Router<L extends Locals = NonNullable<unknown>> {
             NonNullable<unknown>,
             NonNullable<unknown>
         >,
-    >(
-        beforeFunction: T
-    ): Router<
-        JoinLocals<"/", T, L, NonNullable<unknown>, NonNullable<unknown>>
-    > {
+    >(beforeFunction: T): Router<JoinLocals<"/", T, L, NonNullable<unknown>>> {
         this.middleware.push({
             type: "Before",
             before: beforeFunction,
         });
 
-        return this as Router<
-            JoinLocals<"/", T, L, NonNullable<unknown>, NonNullable<unknown>>
-        >;
+        return this as Router<JoinLocals<"/", T, L, NonNullable<unknown>>>;
     }
 
     /**

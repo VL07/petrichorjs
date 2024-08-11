@@ -4,9 +4,9 @@ import { Route } from "./route.js";
 import type { Method, Path } from "./router.js";
 import {
     JoinValidators,
+    UnvalidatedFunctions,
     ValidatedFunctions,
     ValidatorFunction,
-    ValidatorFunctions,
     Validators,
     ValidatorType,
 } from "./validate.js";
@@ -139,7 +139,7 @@ export type MiddlewareOrBefore =
       }
     | {
           type: "Before";
-          before: BeforeFunction<Path, Parsed<ParserFunctions>, Validators>;
+          before: BeforeFunction<Path, Parsed<ParserFunctions>>;
       }
     | {
           type: "Validator";
@@ -157,7 +157,6 @@ export type Locals = Record<string, unknown>;
 export type BeforeFunction<
     R extends Path,
     P extends Parsed<ParserFunctions>,
-    V extends Validators,
     Re extends Locals = Record<string, unknown>,
 > = (
     request: Request<
@@ -165,16 +164,15 @@ export type BeforeFunction<
         [Method],
         DefaultOrParsedParams<R, P>,
         Record<string, unknown>,
-        V
+        Validators
     >
 ) => Re extends never ? Promise<Locals> | Locals | Promise<void> | void : Re;
 
 export type JoinLocals<
     R extends Path,
-    T extends BeforeFunction<R, P, V>,
+    T extends BeforeFunction<R, P>,
     U extends Locals,
     P extends Parsed<ParserFunctions>,
-    V extends Validators,
 > = Omit<U, keyof Awaited<ReturnType<T>>> & Awaited<ReturnType<T>>;
 
 /** Join two paths together */
@@ -198,10 +196,10 @@ interface RouteBuilderParsedAllMethods<
 > {
     handle(handler: HandlerFunction<R, null, P, L, V>): void;
     use(middleware: Middleware): this;
-    before<T extends BeforeFunction<R, P, V>>(
+    before<T extends BeforeFunction<R, P>>(
         beforeFunction: T
-    ): RouteBuilderParsedAllMethods<R, P, JoinLocals<R, T, L, P, V>, V>;
-    validate<T extends Omit<ValidatorFunctions, keyof V>>(
+    ): RouteBuilderParsedAllMethods<R, P, JoinLocals<R, T, L, P>, V>;
+    validate<T extends UnvalidatedFunctions<V>>(
         validators: T
     ): RouteBuilderParsedAllMethods<
         R,
@@ -218,10 +216,10 @@ export interface RouteBuilderUnparsedAllMethods<
     V extends Validators,
 > extends RouteBuilderParsedAllMethods<R, P, L, V> {
     use(middleware: Middleware): this;
-    before<T extends BeforeFunction<R, P, V>>(
+    before<T extends BeforeFunction<R, P>>(
         beforeFunction: T
-    ): RouteBuilderUnparsedAllMethods<R, P, JoinLocals<R, T, L, P, V>, V>;
-    validate<T extends Omit<ValidatorFunctions, keyof V>>(
+    ): RouteBuilderUnparsedAllMethods<R, P, JoinLocals<R, T, L, P>, V>;
+    validate<T extends UnvalidatedFunctions<V>>(
         validators: T
     ): RouteBuilderUnparsedAllMethods<
         R,
@@ -259,10 +257,10 @@ interface RouteBuilderParsed<
      */
     handle(handler: HandlerFunction<R, M, P, L, V>): void;
     use(middleware: Middleware): this;
-    before<T extends BeforeFunction<R, P, V>>(
+    before<T extends BeforeFunction<R, P>>(
         beforeFunction: T
-    ): RouteBuilderParsed<R, M, P, JoinLocals<R, T, L, P, V>, V>;
-    validate<T extends Omit<ValidatorFunctions, keyof V>>(
+    ): RouteBuilderParsed<R, M, P, JoinLocals<R, T, L, P>, V>;
+    validate<T extends UnvalidatedFunctions<V>>(
         validators: T
     ): RouteBuilderParsed<R, M, P, L, JoinValidators<ValidatedFunctions<T>, V>>;
 }
@@ -275,10 +273,10 @@ export interface RouteBuilderUnparsed<
     V extends Validators,
 > extends RouteBuilderParsed<R, M, P, L, V> {
     use(middleware: Middleware): this;
-    before<T extends BeforeFunction<R, P, V>>(
+    before<T extends BeforeFunction<R, P>>(
         beforeFunction: T
-    ): RouteBuilderUnparsed<R, M, P, JoinLocals<R, T, L, P, V>, V>;
-    validate<T extends Omit<ValidatorFunctions, keyof V>>(
+    ): RouteBuilderUnparsed<R, M, P, JoinLocals<R, T, L, P>, V>;
+    validate<T extends UnvalidatedFunctions<V>>(
         validators: T
     ): RouteBuilderUnparsed<
         R,
@@ -308,10 +306,10 @@ interface RouteGroupBuilderParsed<
     /** @see {@link RouteBuilderParsed.handle} */
     handle(): RouteGroup<R, P, L, V>;
     use(middleware: Middleware): this;
-    before<T extends BeforeFunction<R, P, V>>(
+    before<T extends BeforeFunction<R, P>>(
         beforeFunction: T
-    ): RouteGroupBuilderParsed<R, P, JoinLocals<R, T, L, P, V>, V>;
-    validate<T extends Omit<ValidatorFunctions, keyof V>>(
+    ): RouteGroupBuilderParsed<R, P, JoinLocals<R, T, L, P>, V>;
+    validate<T extends UnvalidatedFunctions<V>>(
         validators: T
     ): RouteGroupBuilderParsed<
         R,
@@ -328,10 +326,10 @@ export interface RouteGroupBuilderUnparsed<
     V extends Validators,
 > extends RouteGroupBuilderParsed<R, P, L, V> {
     use(middleware: Middleware): this;
-    before<T extends BeforeFunction<R, P, V>>(
+    before<T extends BeforeFunction<R, P>>(
         beforeFunction: T
-    ): RouteGroupBuilderUnparsed<R, P, JoinLocals<R, T, L, P, V>, V>;
-    validate<T extends Omit<ValidatorFunctions, keyof V>>(
+    ): RouteGroupBuilderUnparsed<R, P, JoinLocals<R, T, L, P>, V>;
+    validate<T extends UnvalidatedFunctions<V>>(
         validators: T
     ): RouteGroupBuilderUnparsed<
         R,
@@ -409,9 +407,9 @@ export class RouteBuilder<
         return this;
     }
 
-    before<T extends BeforeFunction<R, P, V>>(
+    before<T extends BeforeFunction<R, P>>(
         beforeFunction: T
-    ): RouteBuilderUnparsed<R, M, P, JoinLocals<R, T, L, P, V>, V> {
+    ): RouteBuilderUnparsed<R, M, P, JoinLocals<R, T, L, P>, V> {
         this.middleware.push({
             type: "Before",
             before: beforeFunction as unknown as BeforeFunction<
@@ -425,12 +423,12 @@ export class RouteBuilder<
             R,
             M,
             P,
-            JoinLocals<R, T, L, P, V>,
+            JoinLocals<R, T, L, P>,
             V
         >;
     }
 
-    validate<T extends Omit<ValidatorFunctions, keyof V>>(
+    validate<T extends UnvalidatedFunctions<V>>(
         validators: T
     ): RouteBuilderUnparsed<
         R,
@@ -543,9 +541,9 @@ export class RouteBuilderAllMethods<
         return this;
     }
 
-    before<T extends BeforeFunction<R, P, V>>(
+    before<T extends BeforeFunction<R, P>>(
         beforeFunction: T
-    ): RouteBuilderUnparsedAllMethods<R, P, JoinLocals<R, T, L, P, V>, V> {
+    ): RouteBuilderUnparsedAllMethods<R, P, JoinLocals<R, T, L, P>, V> {
         this.middleware.push({
             type: "Before",
             before: beforeFunction as unknown as BeforeFunction<
@@ -558,12 +556,12 @@ export class RouteBuilderAllMethods<
         return this as unknown as RouteBuilderUnparsedAllMethods<
             R,
             P,
-            JoinLocals<R, T, L, P, V>,
+            JoinLocals<R, T, L, P>,
             V
         >;
     }
 
-    validate<T extends Omit<ValidatorFunctions, keyof V>>(
+    validate<T extends UnvalidatedFunctions<V>>(
         validators: T
     ): RouteBuilderUnparsedAllMethods<
         R,
@@ -646,9 +644,9 @@ export class RouteGroupBuilder<
         return this;
     }
 
-    before<T extends BeforeFunction<R, P, V>>(
+    before<T extends BeforeFunction<R, P>>(
         beforeFunction: T
-    ): RouteGroupBuilderUnparsed<R, P, JoinLocals<R, T, L, P, V>, V> {
+    ): RouteGroupBuilderUnparsed<R, P, JoinLocals<R, T, L, P>, V> {
         this.middleware.push({
             type: "Before",
             before: beforeFunction as unknown as BeforeFunction<
@@ -661,12 +659,12 @@ export class RouteGroupBuilder<
         return this as unknown as RouteGroupBuilderUnparsed<
             R,
             P,
-            JoinLocals<R, T, L, P, V>,
+            JoinLocals<R, T, L, P>,
             V
         >;
     }
 
-    validate<T extends Omit<ValidatorFunctions, keyof V>>(
+    validate<T extends UnvalidatedFunctions<V>>(
         validators: T
     ): RouteGroupBuilderUnparsed<
         R,
