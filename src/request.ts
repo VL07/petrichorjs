@@ -9,17 +9,44 @@ import type {
 } from "./builders.js";
 import { HttpError, throwUnparseableError } from "./error.js";
 import { statusCodes } from "./response.js";
+import { Validators } from "./validate.js";
 
 /** Handles query params for requests. */
-class QueryParams {
+class QueryParams<V extends Validators["query"]> {
     private readonly queryParams: URLSearchParams;
+    /**
+     * Same as {@link QueryParams.get} exept it only contains validated query
+     * params.
+     */
+    validated: V;
 
-    constructor(queryParams: URLSearchParams) {
+    constructor(queryParams: URLSearchParams, validatedQueryParams: V) {
         this.queryParams = queryParams;
+        this.validated = validatedQueryParams;
     }
 
-    get(name: string): string | undefined {
-        return this.queryParams.get(name) || undefined;
+    get<T extends string>(
+        name: T
+    ): V extends NonNullable<unknown>
+        ? T extends keyof V
+            ? V[T]
+            : string | undefined
+        : string | undefined {
+        if (this.validated && (this.validated as Record<string, unknown>)[name])
+            return (this.validated as Record<string, unknown>)[
+                name
+            ] as V extends NonNullable<unknown>
+                ? T extends keyof V
+                    ? V[T]
+                    : string | undefined
+                : string | undefined;
+
+        return (this.queryParams.get(name) ||
+            undefined) as V extends NonNullable<unknown>
+            ? T extends keyof V
+                ? V[T]
+                : string | undefined
+            : string | undefined;
     }
 
     getAndParse<T extends ParserFunction<string | undefined>>(
@@ -35,6 +62,10 @@ class QueryParams {
         return parsed as ReturnType<T>;
     }
 
+    /**
+     * Returns a `Map` of all the query params. It does not care about validated
+     * params and only returns the original ones sent with the request.
+     */
     all(): Readonly<Map<string, string>> {
         const queryParams = new Map<string, string>();
         for (const [key, value] of queryParams.entries()) {
@@ -95,6 +126,7 @@ export class Request<
     M extends Method[] | null,
     P extends Parsed<ParserFunctions>,
     L extends Locals,
+    V extends Validators,
 > {
     /**
      * The url params with thire types after the parsers.
@@ -146,7 +178,7 @@ export class Request<
      *
      * @see {@link QueryParams}
      */
-    readonly query: QueryParams;
+    readonly query: QueryParams<V["query"]>;
 
     /** The locals passed from previous before functions */
     locals: L;
@@ -176,6 +208,11 @@ export class Request<
 
     private bodyString: string;
 
+    /** Use {@link Request.json} instead! */
+    validatedJsonBody:
+        | (V["body"] extends NonNullable<unknown> ? V["body"] : unknown)
+        | undefined;
+
     constructor(
         private readonly server: Server,
         private readonly request: http.IncomingMessage,
@@ -190,7 +227,7 @@ export class Request<
             ? M[number]
             : Method;
         this.headers = request.headers as Record<string, string>;
-        this.query = new QueryParams(this.url.searchParams);
+        this.query = new QueryParams<V["query"]>(this.url.searchParams, {});
         this.cookies = new Cookies(
             this.headers.Cookie || this.headers.cookie || ""
         );
@@ -243,10 +280,15 @@ export class Request<
     }
 
     /** Gets the request body and parses it with `JSON.parse`. */
-    async json(): Promise<unknown> {
+    async json(): Promise<
+        V["body"] extends NonNullable<unknown> ? V["body"] : unknown
+    > {
+        if (this.validatedJsonBody) return this.validatedJsonBody;
+
         const body = await this.body();
         try {
-            return JSON.parse(body);
+            this.validatedJsonBody = JSON.parse(body);
+            return this.validatedJsonBody;
         } catch {
             throw new HttpError(
                 statusCodes.UnprocessableContent,
@@ -255,3 +297,4 @@ export class Request<
         }
     }
 }
+

@@ -8,6 +8,7 @@ import {
 } from "./builders.js";
 import { HttpError } from "./error.js";
 import type { Method, Path } from "./router.js";
+import { Validators } from "./validate.js";
 
 export class Route {
     constructor(
@@ -18,7 +19,8 @@ export class Route {
             Path,
             Method[] | null,
             NonNullable<unknown>,
-            NonNullable<unknown>
+            NonNullable<unknown>,
+            Validators
         >,
         public middleware: MiddlewareOrBefore[]
     ) {}
@@ -28,7 +30,8 @@ export class Route {
             Path,
             Method[] | null,
             NonNullable<unknown>,
-            NonNullable<unknown>
+            NonNullable<unknown>,
+            Validators
         >
     ) {
         const tryOrPopulateErrorResponse = async (
@@ -70,7 +73,7 @@ export class Route {
                         middleware.middleware(context, nextFunctions[i])
                     )
                 );
-            } else {
+            } else if (middleware.type === "Before") {
                 nextFunctions.push(async () => {
                     try {
                         context.request.locals = {
@@ -92,9 +95,42 @@ export class Route {
 
                     await nextFunctions[i]();
                 });
+            } else if (middleware.type === "Validator") {
+                nextFunctions.push(async () => {
+                    if (middleware.validatorType === "body") {
+                        const validated = middleware.validator(
+                            await context.request.json()
+                        );
+                        if (!validated.success) {
+                            context.response.unprocessableContent().json({
+                                errors: validated.errors,
+                            });
+
+                            return;
+                        }
+
+                        context.request.validatedJsonBody = validated.data;
+                    } else if (middleware.validatorType === "query") {
+                        const validated = middleware.validator(
+                            context.request.query.all()
+                        );
+                        if (!validated.success) {
+                            context.response.unprocessableContent().json({
+                                errors: validated.errors,
+                            });
+
+                            return;
+                        }
+
+                        context.request.query.validated = validated.data;
+                    }
+
+                    await nextFunctions[i]();
+                });
             }
         }
 
         await nextFunctions.at(-1)!();
     }
 }
+

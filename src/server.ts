@@ -87,7 +87,7 @@ export class Server {
                             middleware.middleware(context, nextFunctions[i])
                         )
                     );
-                } else {
+                } else if (middleware.type === "Before") {
                     nextFunctions.push(async () => {
                         try {
                             context.request.locals = {
@@ -144,3 +144,4 @@ export class Server {
         }
     }
 }
+
