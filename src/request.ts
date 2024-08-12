@@ -74,6 +74,78 @@ class QueryParams<V extends Validators["query"]> {
 
         return queryParams;
     }
+
+    /**
+     * Converts and returns all query parameters as a plain old JavaScript
+     * object.
+     *
+     * @example
+     *     "name=John&pet=cat" => { name: "John", pet: "cat" }
+     *     "user.name=John&user.pet=cat" => {user: { name: "John", pet: "cat" }}
+     *     "pets=cat&pets=dog" => { pets: ["cat", "dog"] }
+     */
+    toObject(): unknown {
+        const asObject = {};
+
+        function recursiveInsert(
+            key: string,
+            value: string,
+            parent: Record<string, unknown> | unknown[]
+        ): void {
+            let firstKey;
+            let restKey;
+            if (key.includes(".")) {
+                firstKey = key.slice(0, key.indexOf("."));
+                restKey = key.slice(firstKey.length + 1);
+            } else {
+                firstKey = key;
+                restKey = "";
+            }
+            if (Array.isArray(parent)) {
+                if (firstKey !== "") {
+                    // Named arguments cannot exist on an implicit array.
+                    return;
+                }
+
+                parent.push(value);
+
+                return;
+            }
+
+            const existingItem = parent[firstKey];
+
+            if (Array.isArray(existingItem)) {
+                recursiveInsert(restKey, value, existingItem);
+            } else if (
+                typeof existingItem === "object" &&
+                existingItem !== null
+            ) {
+                recursiveInsert(
+                    restKey,
+                    value,
+                    existingItem as Record<string, unknown>
+                );
+            } else if (existingItem === undefined) {
+                if (restKey !== "") {
+                    const newParent = {};
+                    parent[firstKey] = newParent;
+                    recursiveInsert(restKey, value, newParent);
+                } else {
+                    parent[firstKey] = value;
+                }
+            } else {
+                const newParent = [existingItem];
+                parent[firstKey] = newParent;
+                recursiveInsert(restKey, value, newParent);
+            }
+        }
+
+        for (const [key, value] of this.queryParams.entries()) {
+            recursiveInsert(key, value, asObject);
+        }
+
+        return asObject;
+    }
 }
 
 /** Class storing cookies on requests, can only be read. */
@@ -279,21 +351,39 @@ export class Request<
         return body;
     }
 
-    /** Gets the request body and parses it with `JSON.parse`. */
+    /**
+     * Gets the request body and parses it with `JSON.parse`. If the
+     * `Content-Type` header on the request is
+     * `application/x-www-form-urlencoded` then this function also converts it
+     * into json. If multiple input elements in the form data have the same name
+     * then a array will be created for those values.
+     */
     async json(): Promise<
         V["body"] extends NonNullable<unknown> ? V["body"] : unknown
     > {
         if (this.validatedJsonBody) return this.validatedJsonBody;
 
         const body = await this.body();
-        try {
-            this.validatedJsonBody = JSON.parse(body);
+        const contentType =
+            this.headers["Content-Type"] || this.headers["content-type"];
+
+        if (contentType === "application/x-www-form-urlencoded") {
+            const asSearchParams = new URLSearchParams(body);
+            const asQueryParams = new QueryParams(asSearchParams, {});
+            const asJson = asQueryParams.toObject();
+
+            this.validatedJsonBody = asJson;
             return this.validatedJsonBody;
-        } catch {
-            throw new HttpError(
-                statusCodes.UnprocessableContent,
-                "Expected JSON body!"
-            );
+        } else {
+            try {
+                this.validatedJsonBody = JSON.parse(body);
+                return this.validatedJsonBody;
+            } catch {
+                throw new HttpError(
+                    statusCodes.UnprocessableContent,
+                    "Expected JSON body!"
+                );
+            }
         }
     }
 }
