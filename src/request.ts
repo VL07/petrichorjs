@@ -10,6 +10,63 @@ import type {
 import { HttpError, throwUnparseableError } from "./error.js";
 import { statusCodes } from "./response.js";
 import { Validators } from "./validate.js";
+import formidable, { Fields, Files } from "formidable";
+import { readFile } from "fs/promises";
+import IncomingForm from "formidable/Formidable.js";
+
+type ParsedMultipart<T> = Readonly<{
+    [key: string]: T | T[] | ParsedMultipart<T>;
+}>;
+
+function multipartRecursiveInsert(
+    key: string,
+    value: unknown,
+    parent: Record<string, unknown> | unknown[]
+): void {
+    let firstKey;
+    let restKey;
+    if (key.includes(".")) {
+        firstKey = key.slice(0, key.indexOf("."));
+        restKey = key.slice(firstKey.length + 1);
+    } else {
+        firstKey = key;
+        restKey = "";
+    }
+    if (Array.isArray(parent)) {
+        if (firstKey !== "") {
+            // Named arguments cannot exist on an implicit array.
+            return;
+        }
+
+        parent.push(value);
+
+        return;
+    }
+
+    const existingItem = parent[firstKey];
+
+    if (Array.isArray(existingItem)) {
+        multipartRecursiveInsert(restKey, value, existingItem);
+    } else if (typeof existingItem === "object" && existingItem !== null) {
+        multipartRecursiveInsert(
+            restKey,
+            value,
+            existingItem as Record<string, unknown>
+        );
+    } else if (existingItem === undefined) {
+        if (restKey !== "") {
+            const newParent = {};
+            parent[firstKey] = newParent;
+            multipartRecursiveInsert(restKey, value, newParent);
+        } else {
+            parent[firstKey] = value;
+        }
+    } else {
+        const newParent = [existingItem];
+        parent[firstKey] = newParent;
+        multipartRecursiveInsert(restKey, value, newParent);
+    }
+}
 
 /** Handles query params for requests. */
 class QueryParams<V extends Validators["query"]> {
@@ -87,61 +144,8 @@ class QueryParams<V extends Validators["query"]> {
     toObject(): unknown {
         const asObject = {};
 
-        function recursiveInsert(
-            key: string,
-            value: string,
-            parent: Record<string, unknown> | unknown[]
-        ): void {
-            let firstKey;
-            let restKey;
-            if (key.includes(".")) {
-                firstKey = key.slice(0, key.indexOf("."));
-                restKey = key.slice(firstKey.length + 1);
-            } else {
-                firstKey = key;
-                restKey = "";
-            }
-            if (Array.isArray(parent)) {
-                if (firstKey !== "") {
-                    // Named arguments cannot exist on an implicit array.
-                    return;
-                }
-
-                parent.push(value);
-
-                return;
-            }
-
-            const existingItem = parent[firstKey];
-
-            if (Array.isArray(existingItem)) {
-                recursiveInsert(restKey, value, existingItem);
-            } else if (
-                typeof existingItem === "object" &&
-                existingItem !== null
-            ) {
-                recursiveInsert(
-                    restKey,
-                    value,
-                    existingItem as Record<string, unknown>
-                );
-            } else if (existingItem === undefined) {
-                if (restKey !== "") {
-                    const newParent = {};
-                    parent[firstKey] = newParent;
-                    recursiveInsert(restKey, value, newParent);
-                } else {
-                    parent[firstKey] = value;
-                }
-            } else {
-                const newParent = [existingItem];
-                parent[firstKey] = newParent;
-                recursiveInsert(restKey, value, newParent);
-            }
-        }
-
         for (const [key, value] of this.queryParams.entries()) {
-            recursiveInsert(key, value, asObject);
+            multipartRecursiveInsert(key, value, asObject);
         }
 
         return asObject;
@@ -278,7 +282,14 @@ export class Request<
      */
     readonly cookies: Cookies;
 
+    /** The value of the `Content-Type` header on the request */
+    readonly contentType: string | undefined;
+
     private bodyString: string;
+    private multipartFiles: Files | undefined;
+    private isMultipartRequest: boolean;
+    private multipartForm: IncomingForm | undefined;
+    private handledMultipartRequest: boolean = false;
 
     /** Use {@link Request.json} instead! */
     validatedJsonBody:
@@ -307,6 +318,27 @@ export class Request<
         this.routerPath = routerPath;
 
         this.bodyString = "";
+
+        this.contentType =
+            (this.headers["Content-Type"] || this.headers["content-type"] || "")
+                .split(";")
+                .at(0) || undefined;
+
+        this.isMultipartRequest = this.contentType === "multipart/form-data";
+
+        if (this.isMultipartRequest) {
+            this.multipartForm = formidable({});
+
+            let chunks: string = "";
+
+            this.multipartForm.on("data", (data) => {
+                chunks += data.buffer;
+            });
+
+            this.multipartForm.once("end", () => {
+                this.bodyString = chunks;
+            });
+        }
     }
 
     private urlFromRequestUrl(url: string): URL {
@@ -322,8 +354,13 @@ export class Request<
      *     await request.body(); // Text body
      *     await request.json(); // Parsed json body
      */
-    body(): Promise<string> | string {
+    async body(): Promise<string> {
         if (this.request.readableEnded) {
+            return this.bodyString;
+        }
+
+        if (this.isMultipartRequest) {
+            await this.handleMultipartRequest();
             return this.bodyString;
         }
 
@@ -356,25 +393,31 @@ export class Request<
      * `Content-Type` header on the request is
      * `application/x-www-form-urlencoded` then this function also converts it
      * into json. If multiple input elements in the form data have the same name
-     * then a array will be created for those values.
+     * then a array will be created for those values. Files sent with the
+     * request when the `Content-Type` header on the request is set to
+     * `application/x-www-form-urlencoded` will also be returned from here. If
+     * you only want the files you can use the {@link Request.files} or
+     * {@link Request.filesFlat} method.
      */
     async json(): Promise<
         V["body"] extends NonNullable<unknown> ? V["body"] : unknown
     > {
         if (this.validatedJsonBody) return this.validatedJsonBody;
 
-        const body = await this.body();
-        const contentType =
-            this.headers["Content-Type"] || this.headers["content-type"];
-
-        if (contentType === "application/x-www-form-urlencoded") {
+        if (this.contentType === "application/x-www-form-urlencoded") {
+            const body = await this.body();
             const asSearchParams = new URLSearchParams(body);
             const asQueryParams = new QueryParams(asSearchParams, {});
             const asJson = asQueryParams.toObject();
 
             this.validatedJsonBody = asJson;
             return this.validatedJsonBody;
+        } else if (this.contentType === "multipart/form-data") {
+            await this.handleMultipartRequest();
+            return this.validatedJsonBody;
         } else {
+            const body = await this.body();
+
             try {
                 this.validatedJsonBody = JSON.parse(body);
                 return this.validatedJsonBody;
@@ -385,6 +428,90 @@ export class Request<
                 );
             }
         }
+    }
+
+    private async handleMultipartRequest(): Promise<void> {
+        if (!this.multipartForm) throw "Wrong content type!";
+        if (this.handledMultipartRequest) return;
+
+        this.handledMultipartRequest = true;
+
+        let fields: Fields;
+        let files: Files;
+        try {
+            [fields, files] = await this.multipartForm.parse(this.request);
+        } catch {
+            throw new HttpError(
+                statusCodes.UnprocessableContent,
+                "Invalid form data body!"
+            );
+        }
+
+        const fieldsAsObject = {};
+
+        for (const [key, valueArray] of Object.entries(fields)) {
+            if (!valueArray) continue;
+            for (const value of valueArray) {
+                multipartRecursiveInsert(key, value, fieldsAsObject);
+            }
+        }
+
+        for (const [key, fileArray] of Object.entries(files)) {
+            if (!fileArray) continue;
+            for (const file of fileArray) {
+                multipartRecursiveInsert(key, file, fieldsAsObject);
+            }
+        }
+
+        this.validatedJsonBody = fieldsAsObject;
+        this.multipartFiles = files;
+    }
+
+    /**
+     * Returns all the files sent with the request. The `Content-Type` header of
+     * the request has to be set to `multipart/form-data` for it to return any
+     * files. The files are categorized the same way as how url encoded data
+     * would be parsed in the {@link Request.json} function. The files with the
+     * request will also be returned from the {@link Request.json} function.
+     *
+     * @example
+     *     const files = await request.files();
+     */
+    async files(): Promise<ParsedMultipart<formidable.File>> {
+        if (!this.isMultipartRequest) return {};
+
+        await this.handleMultipartRequest();
+        if (!this.multipartFiles) return {};
+
+        const parsedObject = {};
+        for (const [key, fileArray] of Object.entries(this.multipartFiles)) {
+            if (!fileArray) continue;
+            for (const file of fileArray) {
+                multipartRecursiveInsert(key, file, parsedObject);
+            }
+        }
+
+        return parsedObject;
+    }
+
+    /**
+     * Returns the files sent with the request but not parsed like how the
+     * {@link Request.files} function would do it.
+     */
+    async filesFlat(): Promise<Readonly<Record<string, formidable.File[]>>> {
+        if (!this.isMultipartRequest) return {};
+
+        await this.handleMultipartRequest();
+        if (!this.multipartFiles) return {};
+
+        const parsed: Record<string, formidable.File[]> = {};
+        for (const [key, file] of Object.entries(this.multipartFiles)) {
+            if (!file) continue;
+
+            parsed[key] = file;
+        }
+
+        return parsed;
     }
 }
 
