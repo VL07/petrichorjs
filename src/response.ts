@@ -348,7 +348,7 @@ export class Response<R extends Path | null, M extends Method[] | null> {
      * middleware.
      *
      * @example
-     *     response.stream(async (stream) => {
+     *     response.streamResponse(async (stream) => {
      *         let i = 0;
      *         while (i < 10) {
      *             await stream.write(`${i}\n`);
@@ -519,3 +519,4 @@ export class Response<R extends Path | null, M extends Method[] | null> {
         return this;
     }
 }
+
