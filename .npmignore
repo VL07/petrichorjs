@@ -1,2 +1,9 @@
+src
+.gitignore
+.npmignore
+.prettierignore
+.prettierrc.js
+eslint.config.mjs
+tsconfig.json
 node_modules
 .github
