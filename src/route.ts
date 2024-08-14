@@ -130,7 +130,15 @@ export class Route {
             }
         }
 
-        await nextFunctions.at(-1)!();
+        try {
+            await nextFunctions.at(-1)!();
+        } catch (err) {
+            if (!context.response.stream) {
+                context.response.internalServerError().json({
+                    message: "Internal server error!",
+                });
+            }
+        }
     }
 }
 
