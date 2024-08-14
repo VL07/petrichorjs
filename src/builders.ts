@@ -1,7 +1,13 @@
 import { Request } from "./request.js";
 import { Response } from "./response.js";
 import { Route } from "./route.js";
-import type { Method, Path } from "./router.js";
+import type {
+    AutocompletePath,
+    CheckPath,
+    Method,
+    Path,
+    PathError,
+} from "./router.js";
 import {
     JoinValidators,
     UnvalidatedFunctions,
@@ -350,28 +356,42 @@ interface RouteGroup<
 > {
     on<T extends Method, U extends Path>(
         method: T,
-        path: U
+        path: CheckPath<U> extends PathError
+            ? CheckPath<U> | NoInfer<AutocompletePath<U>>
+            : NoInfer<U | AutocompletePath<U>>
     ): RouteBuilderUnparsed<JoinPaths<R, U>, [T], P, L, V>;
 
     get<T extends Path>(
-        path: T
+        path: CheckPath<T> extends PathError
+            ? CheckPath<T> | NoInfer<AutocompletePath<T>>
+            : NoInfer<T | AutocompletePath<T>>
     ): RouteBuilderUnparsed<JoinPaths<R, T>, ["GET"], P, L, V>;
     post<T extends Path>(
-        path: T
+        path: CheckPath<T> extends PathError
+            ? CheckPath<T> | NoInfer<AutocompletePath<T>>
+            : NoInfer<T | AutocompletePath<T>>
     ): RouteBuilderUnparsed<JoinPaths<R, T>, ["POST"], P, L, V>;
     put<T extends Path>(
-        path: T
+        path: CheckPath<T> extends PathError
+            ? CheckPath<T> | NoInfer<AutocompletePath<T>>
+            : NoInfer<T | AutocompletePath<T>>
     ): RouteBuilderUnparsed<JoinPaths<R, T>, ["PUT"], P, L, V>;
     delete<T extends Path>(
-        path: T
+        path: CheckPath<T> extends PathError
+            ? CheckPath<T> | NoInfer<AutocompletePath<T>>
+            : NoInfer<T | AutocompletePath<T>>
     ): RouteBuilderUnparsed<JoinPaths<R, T>, ["DELETE"], P, L, V>;
 
     all<T extends Path>(
-        path: T
+        path: CheckPath<T> extends PathError
+            ? CheckPath<T> | NoInfer<AutocompletePath<T>>
+            : NoInfer<T | AutocompletePath<T>>
     ): RouteBuilderUnparsedAllMethods<JoinPaths<R, T>, P, L, V>;
 
     group<T extends Path>(
-        path: T
+        path: CheckPath<T> extends PathError
+            ? (PathError & CheckPath<T>) | NoInfer<AutocompletePath<T>>
+            : NoInfer<T | AutocompletePath<T>>
     ): RouteGroupBuilderUnparsed<JoinPaths<R, T>, P, L, V>;
 }
 
@@ -730,10 +750,12 @@ class RouteGroupBackend<
 
     on<T extends Method, U extends Path>(
         method: T,
-        path: U
+        path: CheckPath<U> extends PathError
+            ? (PathError & CheckPath<U>) | NoInfer<AutocompletePath<U>>
+            : NoInfer<U | AutocompletePath<U>>
     ): RouteBuilderUnparsed<JoinPaths<R, U>, [T], P, L, V> {
         const builder = new RouteBuilder<JoinPaths<R, U>, [T], P, L, V>(
-            this.joinPaths(path),
+            this.joinPaths(path as U),
             [method]
         );
         this.routeBuilders.push(builder);
@@ -742,31 +764,41 @@ class RouteGroupBackend<
     }
 
     get<T extends Path>(
-        path: T
+        path: CheckPath<T> extends PathError
+            ? (PathError & CheckPath<T>) | NoInfer<AutocompletePath<T>>
+            : NoInfer<T | AutocompletePath<T>>
     ): RouteBuilderUnparsed<JoinPaths<R, T>, ["GET"], P, L, V> {
         return this.on("GET", path);
     }
 
     post<T extends Path>(
-        path: T
+        path: CheckPath<T> extends PathError
+            ? (PathError & CheckPath<T>) | NoInfer<AutocompletePath<T>>
+            : NoInfer<T | AutocompletePath<T>>
     ): RouteBuilderUnparsed<JoinPaths<R, T>, ["POST"], P, L, V> {
         return this.on("POST", path);
     }
 
     put<T extends Path>(
-        path: T
+        path: CheckPath<T> extends PathError
+            ? (PathError & CheckPath<T>) | NoInfer<AutocompletePath<T>>
+            : NoInfer<T | AutocompletePath<T>>
     ): RouteBuilderUnparsed<JoinPaths<R, T>, ["PUT"], P, L, V> {
         return this.on("PUT", path);
     }
 
     delete<T extends Path>(
-        path: T
+        path: CheckPath<T> extends PathError
+            ? (PathError & CheckPath<T>) | NoInfer<AutocompletePath<T>>
+            : NoInfer<T | AutocompletePath<T>>
     ): RouteBuilderUnparsed<JoinPaths<R, T>, ["DELETE"], P, L, V> {
         return this.on("DELETE", path);
     }
 
     all<T extends Path>(
-        path: T
+        path: CheckPath<T> extends PathError
+            ? (PathError & CheckPath<T>) | NoInfer<AutocompletePath<T>>
+            : NoInfer<T | AutocompletePath<T>>
     ): RouteBuilderUnparsedAllMethods<JoinPaths<R, T>, P, L, V> {
         const builder = new RouteBuilderAllMethods(
             (this.path + path) as JoinPaths<R, T>
@@ -783,7 +815,9 @@ class RouteGroupBackend<
     }
 
     group<T extends Path>(
-        path: T
+        path: CheckPath<T> extends PathError
+            ? (PathError & CheckPath<T>) | NoInfer<AutocompletePath<T>>
+            : NoInfer<T | AutocompletePath<T>>
     ): RouteGroupBuilderUnparsed<JoinPaths<R, T>, P, L, V> {
         const groupBuilder = new RouteGroupBuilder<JoinPaths<R, T>, P, L, V>(
             (this.path + path) as JoinPaths<R, T>

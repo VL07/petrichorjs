@@ -47,6 +47,88 @@ import { Server } from "./server.js";
  */
 export type Path = `/${string}`;
 
+type PathErrors = {
+    TrailingSlash: "CANNOT END PATH WITH TRAILING SLASH";
+    FollowedWildcard: "WILDCARDS CANNOT BE FOLLOWED BY ROUTES";
+    EmptyDynamicName: "EMPTY DYNAMIC PATH NAME";
+    OptionalFollowOptional: "OPTIONAL DYNAMIC ROUTES CAN ONLY BE FOLLOWED BY OTHER OPTIONAL ROUTES";
+    StartWithSlash: "ROUTES MUST START WITH A SLASH";
+};
+
+export type PathError = PathErrors[keyof PathErrors];
+
+type Slash<T extends string> = `/${T}`;
+type FirstSlug<T extends Path> = T extends `/${infer Slug}/${string}`
+    ? Slash<Slug>
+    : T extends `/${infer Slug}`
+      ? Slash<Slug>
+      : T;
+type RestSlugs<T extends Path> = T extends `/${string}/${infer Rest}`
+    ? Slash<Rest>
+    : never;
+type LastSlug<T extends Path> =
+    RestSlugs<T> extends never ? T : LastSlug<RestSlugs<T>>;
+type ContainsOptional<T extends Path> = T extends `/${string}?${string}`
+    ? true
+    : false;
+
+type PathRecursive<T extends Path> = T extends "/"
+    ? PathErrors["TrailingSlash"]
+    : WildcardOptionalPath<T>;
+
+type WildcardOptionalPath<T extends Path> =
+    FirstSlug<T> extends `/*?`
+        ? RestSlugs<T> extends never
+            ? T
+            : PathErrors["FollowedWildcard"]
+        : WildcardPath<T>;
+type WildcardPath<T extends Path> =
+    FirstSlug<T> extends `/*`
+        ? RestSlugs<T> extends never
+            ? T
+            : PathErrors["FollowedWildcard"]
+        : DynamicOptionalPath<T>;
+type DynamicOptionalPath<T extends Path> =
+    FirstSlug<T> extends `/:${infer Name}?`
+        ? Name extends ""
+            ? PathErrors["EmptyDynamicName"]
+            : RestSlugs<T> extends never
+              ? T
+              : PathRecursiveOptional<RestSlugs<T>>
+        : DynamicPath<T>;
+type DynamicPath<T extends Path> =
+    FirstSlug<T> extends `/:${infer Name}`
+        ? Name extends ""
+            ? PathErrors["EmptyDynamicName"]
+            : RestSlugs<T> extends never
+              ? T
+              : PathRecursive<RestSlugs<T>>
+        : StaticPath<T>;
+type StaticPath<T extends Path> =
+    RestSlugs<T> extends never ? T : PathRecursive<RestSlugs<T>>;
+
+type PathRecursiveOptional<T extends Path> = T extends "/"
+    ? PathErrors["TrailingSlash"]
+    : WildcardOnlyOptionalPath<T>;
+type WildcardOnlyOptionalPath<T extends Path> =
+    FirstSlug<T> extends `/*?`
+        ? RestSlugs<T> extends never
+            ? T
+            : PathErrors["FollowedWildcard"]
+        : DynamicOnlyOptionalPath<T>;
+type DynamicOnlyOptionalPath<T extends Path> =
+    FirstSlug<T> extends `/:${infer Name}?`
+        ? Name extends ""
+            ? PathErrors["EmptyDynamicName"]
+            : RestSlugs<T> extends never
+              ? T
+              : PathRecursiveOptional<RestSlugs<T>>
+        : PathErrors["OptionalFollowOptional"];
+
+export type CheckPath<T extends Path> = T extends "/" ? T : PathRecursive<T>;
+export type AutocompletePath<T extends Path> =
+    `${T}${(LastSlug<T> extends `/:${infer Name}` ? (Name extends `${string}?` ? never : "?/:" | "?/*?" | "?") : never) | (ContainsOptional<T> extends true ? never : "/" | "/*" | "/*?")}`;
+
 /**
  * Http methods. All strings are allowed to support custom methods, but non
  * standard ones don't have shorthand methods.
@@ -544,7 +626,9 @@ export class Router<L extends Locals = NonNullable<unknown>> {
 
     /** Handle `get` requests. Shorthand for the `router.on("GET", ...)` method. */
     get<R extends Path>(
-        route: R
+        route: CheckPath<R> extends PathError
+            ? CheckPath<R> | NoInfer<AutocompletePath<R>>
+            : NoInfer<R | AutocompletePath<R>>
     ): RouteBuilderUnparsed<
         R,
         ["GET"],
@@ -560,7 +644,9 @@ export class Router<L extends Locals = NonNullable<unknown>> {
      * method.
      */
     post<R extends Path>(
-        route: R
+        route: CheckPath<R> extends PathError
+            ? CheckPath<R> | NoInfer<AutocompletePath<R>>
+            : NoInfer<R | AutocompletePath<R>>
     ): RouteBuilderUnparsed<
         R,
         ["POST"],
@@ -573,7 +659,9 @@ export class Router<L extends Locals = NonNullable<unknown>> {
 
     /** Handle `put` requests. Shorthand for the `router.on("PUT", ...)` method. */
     put<R extends Path>(
-        route: R
+        route: CheckPath<R> extends PathError
+            ? CheckPath<R> | NoInfer<AutocompletePath<R>>
+            : NoInfer<R | AutocompletePath<R>>
     ): RouteBuilderUnparsed<
         R,
         ["PUT"],
@@ -589,7 +677,9 @@ export class Router<L extends Locals = NonNullable<unknown>> {
      * method.
      */
     delete<R extends Path>(
-        route: R
+        route: CheckPath<R> extends PathError
+            ? CheckPath<R> | NoInfer<AutocompletePath<R>>
+            : NoInfer<R | AutocompletePath<R>>
     ): RouteBuilderUnparsed<
         R,
         ["DELETE"],
@@ -613,7 +703,9 @@ export class Router<L extends Locals = NonNullable<unknown>> {
      */
     on<M extends Method, R extends Path>(
         method: M,
-        route: R
+        route: CheckPath<R> extends PathError
+            ? CheckPath<R> | NoInfer<AutocompletePath<R>>
+            : NoInfer<R | AutocompletePath<R>>
     ): RouteBuilderUnparsed<
         R,
         [M],
@@ -627,7 +719,7 @@ export class Router<L extends Locals = NonNullable<unknown>> {
             NonNullable<unknown>,
             NonNullable<unknown>,
             NonNullable<unknown>
-        >(route, [method]);
+        >(route as R, [method]);
         this.routeBuilders.push(builder);
 
         return builder;
@@ -644,7 +736,9 @@ export class Router<L extends Locals = NonNullable<unknown>> {
      *     });
      */
     all<R extends Path>(
-        route: R
+        route: CheckPath<R> extends PathError
+            ? CheckPath<R> | NoInfer<AutocompletePath<R>>
+            : NoInfer<R | AutocompletePath<R>>
     ): RouteBuilderUnparsedAllMethods<
         R,
         NonNullable<unknown>,
@@ -656,7 +750,7 @@ export class Router<L extends Locals = NonNullable<unknown>> {
             NonNullable<unknown>,
             NonNullable<unknown>,
             NonNullable<unknown>
-        >(route);
+        >(route as R);
         this.routeBuilders.push(builder);
 
         return builder;
@@ -740,7 +834,9 @@ export class Router<L extends Locals = NonNullable<unknown>> {
      *         .handle();
      */
     group<R extends Path>(
-        path: R
+        path: CheckPath<R> extends PathError
+            ? (PathError & CheckPath<R>) | NoInfer<AutocompletePath<R>>
+            : NoInfer<R | AutocompletePath<R>>
     ): RouteGroupBuilderUnparsed<
         R,
         NonNullable<unknown>,
@@ -752,7 +848,7 @@ export class Router<L extends Locals = NonNullable<unknown>> {
             NonNullable<unknown>,
             NonNullable<unknown>,
             NonNullable<unknown>
-        >(path);
+        >(path as R);
         this.groupBuilders.push(builder);
 
         return builder;
