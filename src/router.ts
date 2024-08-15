@@ -57,16 +57,16 @@ type PathErrors = {
 
 export type PathError = PathErrors[keyof PathErrors];
 
-type Slash<T extends string> = `/${T}`;
-type FirstSlug<T extends Path> = T extends `/${infer Slug}/${string}`
+export type Slash<T extends string> = `/${T}`;
+export type FirstSlug<T extends Path> = T extends `/${infer Slug}/${string}`
     ? Slash<Slug>
     : T extends `/${infer Slug}`
       ? Slash<Slug>
       : T;
-type RestSlugs<T extends Path> = T extends `/${string}/${infer Rest}`
+export type RestSlugs<T extends Path> = T extends `/${string}/${infer Rest}`
     ? Slash<Rest>
     : never;
-type LastSlug<T extends Path> =
+export type LastSlug<T extends Path> =
     RestSlugs<T> extends never ? T : LastSlug<RestSlugs<T>>;
 type ContainsOptional<T extends Path> = T extends `/${string}?${string}`
     ? true
@@ -145,6 +145,10 @@ interface DynamicRoute {
 interface WildcardRoute {
     parser: ParserFunction<string | undefined> | undefined;
     route: Route;
+}
+
+function joinPaths(a: Path, b: Path): Path {
+    return ((a === "/" ? "" : a) + (b === "/" ? "" : b) || "/") as Path;
 }
 
 export class RouteGroup {
@@ -240,7 +244,7 @@ export class RouteGroup {
             }
 
             const dynamicChildRouteGroup = new RouteGroup(
-                `${this.path}/${slug}`
+                joinPaths(this.path, `/${slug}`)
             );
 
             dynamicChildRouteGroup.makeRouteGroupsForPath(
@@ -333,7 +337,9 @@ export class RouteGroup {
             let existingRouteGroup =
                 this.staticChildGroupsMethodWildcard.get(slug);
             if (!existingRouteGroup) {
-                existingRouteGroup = new RouteGroup(`${this.path}/${slug}`);
+                existingRouteGroup = new RouteGroup(
+                    joinPaths(this.path, `/${slug}`)
+                );
                 this.staticChildGroupsMethodWildcard.set(
                     slug,
                     existingRouteGroup
@@ -353,7 +359,9 @@ export class RouteGroup {
 
             let existingRouteGroup = existingMethod.get(slug);
             if (!existingRouteGroup) {
-                existingRouteGroup = new RouteGroup(`${this.path}/${slug}`);
+                existingRouteGroup = new RouteGroup(
+                    joinPaths(this.path, `/${slug}`)
+                );
                 existingMethod.set(slug, existingRouteGroup);
             }
 
@@ -425,7 +433,7 @@ export class RouteGroup {
                         undefined,
                         optionalDynamicRoute.dynamicSlugVariableName
                     );
-                    if (success) continue;
+                    if (!success) continue;
 
                     const route =
                         optionalDynamicRoute.routeGroup.getRouteFromPath(

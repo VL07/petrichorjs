@@ -1,4 +1,4 @@
-import http from "http";
+import http from "node:http";
 import { Path, RouteGroup } from "./router.js";
 import { Request } from "./request.js";
 import { Response } from "./response.js";

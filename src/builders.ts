@@ -4,9 +4,11 @@ import { Route } from "./route.js";
 import type {
     AutocompletePath,
     CheckPath,
+    FirstSlug,
     Method,
     Path,
     PathError,
+    RestSlugs,
 } from "./router.js";
 import {
     JoinValidators,
@@ -17,39 +19,73 @@ import {
     ValidatorType,
 } from "./validate.js";
 
-type DynamicOptionalWildcardRoute<T extends Path> = T extends `/*?/${string}`
-    ? never
-    : DynamicWildcardRoute<T>;
-type DynamicWildcardRoute<T extends Path> = T extends `/*/${string}`
-    ? never
-    : DynamicOptionalRoute<T>;
-type DynamicOptionalRoute<T extends Path> = T extends `/:${string}?/${string}`
-    ? never
-    : DynamicRoute<T>;
-type DynamicRoute<T extends Path> = T extends `/:${infer Name}/${infer Rest}`
-    ? { [K in Name]: string } & Params<`/${Rest}`>
-    : DynamicOptionalWildcardEndRoute<T>;
-type DynamicOptionalWildcardEndRoute<T extends Path> = T extends `/*?`
-    ? { wildcard: string | undefined }
-    : DynamicWildcardEndRoute<T>;
-type DynamicWildcardEndRoute<T extends Path> = T extends `/*`
-    ? { wildcard: string }
-    : DynamicOptionalEndRoute<T>;
-type DynamicOptionalEndRoute<T extends Path> = T extends `/:${infer Name}?`
-    ? { [K in Name]: string | undefined }
-    : DynamicEndRoute<T>;
-type DynamicEndRoute<T extends Path> = T extends `/:${infer Name}`
-    ? { [K in Name]: string }
-    : StaticRoute<T>;
-type StaticRoute<T extends Path> = T extends `/${string}/${infer Rest}`
-    ? Params<`/${Rest}`>
-    : StaticEndRoute<T>;
-type StaticEndRoute<T extends Path> = T extends `/${string}`
-    ? NonNullable<unknown>
-    : NonNullable<unknown>;
+type ObjectItem<Name extends string> = { [K in Name]: string };
+type OptionalObjectItem<Name extends string> = {
+    [K in Name]?: string | undefined;
+};
+type Mix<T> = { [K in keyof T]: T[K] };
+
+type PathRecursive<T extends Path | never> = T extends never
+    ? {}
+    : T extends "/"
+      ? never
+      : WildcardOptionalPath<T>;
+
+type WildcardOptionalPath<T extends Path> =
+    FirstSlug<T> extends `/*?`
+        ? RestSlugs<T> extends never
+            ? OptionalObjectItem<"wildcard">
+            : never
+        : WildcardPath<T>;
+type WildcardPath<T extends Path> =
+    FirstSlug<T> extends `/*`
+        ? RestSlugs<T> extends never
+            ? ObjectItem<"wildcard">
+            : never
+        : DynamicOptionalPath<T>;
+type DynamicOptionalPath<T extends Path> =
+    FirstSlug<T> extends `/:${infer Name}?`
+        ? Name extends ""
+            ? never
+            : RestSlugs<T> extends never
+              ? OptionalObjectItem<Name>
+              : OptionalObjectItem<Name> & PathRecursiveOptional<RestSlugs<T>>
+        : DynamicPath<T>;
+type DynamicPath<T extends Path> =
+    FirstSlug<T> extends `/:${infer Name}`
+        ? Name extends ""
+            ? never
+            : RestSlugs<T> extends never
+              ? ObjectItem<Name>
+              : ObjectItem<Name> & PathRecursive<RestSlugs<T>>
+        : StaticPath<T>;
+type StaticPath<T extends Path> =
+    RestSlugs<T> extends never ? {} : PathRecursive<RestSlugs<T>>;
+
+type PathRecursiveOptional<T extends Path | never> = T extends never
+    ? {}
+    : T extends "/"
+      ? never
+      : WildcardOnlyOptionalPath<T>;
+type WildcardOnlyOptionalPath<T extends Path> =
+    FirstSlug<T> extends `/*?`
+        ? RestSlugs<T> extends never
+            ? OptionalObjectItem<"wildcard">
+            : never
+        : DynamicOnlyOptionalPath<T>;
+type DynamicOnlyOptionalPath<T extends Path> =
+    FirstSlug<T> extends `/:${infer Name}?`
+        ? Name extends ""
+            ? never
+            : RestSlugs<T> extends never
+              ? OptionalObjectItem<Name>
+              : OptionalObjectItem<Name> & PathRecursiveOptional<RestSlugs<T>>
+        : never;
 
 /** Get the params, and thire value, from a path */
-type Params<T extends Path> = DynamicOptionalWildcardRoute<T>;
+type Params<T extends Path> = T extends "/" ? {} : Mix<PathRecursive<T>>;
+
+type A = Params<"/:a?/*?">;
 
 type UnparseableFunction = () => never;
 
