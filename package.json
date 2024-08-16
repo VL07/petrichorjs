@@ -5,10 +5,10 @@
     "main": "dist/index.js",
     "types": "dist/index.d.ts",
     "type": "module",
-    "homepage": "https://github.com/VL07/petrichorjs#readme",
+    "homepage": "https://github.com/petrichorjs/petrichorjs#readme",
     "repository": {
         "type": "git",
-        "url": "git+https://github.com/VL07/petrichorjs.git"
+        "url": "git+https://github.com/petrichorjs/petrichorjs.git"
     },
     "scripts": {
         "build": "npx tsc",
