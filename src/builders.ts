@@ -208,7 +208,9 @@ export type BeforeFunction<
         Record<string, unknown>,
         Validators
     >
-) => Re extends never ? Promise<Locals> | Locals | Promise<void> | void : Re;
+) => Re extends never
+    ? Promise<Locals> | Locals | Promise<void> | void
+    : Promise<Re> | Re;
 
 export type JoinLocals<
     R extends Path,

@@ -41,7 +41,7 @@ export type ValidatorFunctions = Partial<{
 }>;
 
 export type ValidatedFunctions<T extends ValidatorFunctions> = {
-    [K in keyof T]: T[K] extends ValidatorFunction<unknown>
+    [K in keyof T]: T[K] extends ValidatorFunction<any, any>
         ? Validated<T[K]>
         : never;
 };
@@ -52,4 +52,3 @@ export type UnvalidatedFunctions<T extends Validators> = keyof Omit<
 > extends never
     ? never
     : Omit<ValidatorFunctions, keyof T>;
-
