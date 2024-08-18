@@ -169,6 +169,7 @@ class Stream<R extends Path | null, M extends Method[] | null> {
     private onCloseListeners: StreamCloseEventListener[] = [];
 
     constructor(
+        //@ts-expect-error Its unused for now
         private readonly server: Server,
         private readonly response: http.ServerResponse,
         private readonly streamFunction: (

@@ -70,7 +70,7 @@ export class Route {
             if (middleware.type === "Middleware") {
                 nextFunctions.push(() =>
                     tryOrPopulateErrorResponse(() =>
-                        middleware.middleware(context, nextFunctions[i])
+                        middleware.middleware(context, nextFunctions[i]!)
                     )
                 );
             } else if (middleware.type === "Before") {
@@ -93,7 +93,7 @@ export class Route {
                         throw err;
                     }
 
-                    await nextFunctions[i]();
+                    await nextFunctions[i]!();
                 });
             } else if (middleware.type === "Validator") {
                 nextFunctions.push(async () => {
@@ -125,7 +125,7 @@ export class Route {
                         context.request.query.validated = validated.data;
                     }
 
-                    await nextFunctions[i]();
+                    await nextFunctions[i]!();
                 });
             }
         }

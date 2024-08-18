@@ -4,7 +4,7 @@ import { JsonValue, StatusCode } from "./response.js";
 export class HttpError extends Error {
     constructor(
         readonly status: StatusCode,
-        readonly message: string
+        override readonly message: string
     ) {
         super(`Http Error: ${status} - ${message}`);
     }
@@ -29,7 +29,8 @@ export function throwUnparseableError(name: string): never {
  * Preferable use the {@link throwUnparseableError} method to throw this error.
  */
 export class UnparseableError extends HttpError {
-    constructor(readonly name: string) {
+    constructor(name: string) {
         super(422, `Unparseable route param or query param: '${name}'!`);
     }
 }
+

@@ -85,8 +85,6 @@ type DynamicOnlyOptionalPath<T extends Path> =
 /** Get the params, and thire value, from a path */
 type Params<T extends Path> = T extends "/" ? {} : Mix<PathRecursive<T>>;
 
-type A = Params<"/:a?/*?">;
-
 type UnparseableFunction = () => never;
 
 /**

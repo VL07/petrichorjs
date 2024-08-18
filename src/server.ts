@@ -84,7 +84,7 @@ export class Server {
                 if (middleware.type === "Middleware") {
                     nextFunctions.push(() =>
                         tryOrPopulateErrorResponse(() =>
-                            middleware.middleware(context, nextFunctions[i])
+                            middleware.middleware(context, nextFunctions[i]!)
                         )
                     );
                 } else if (middleware.type === "Before") {
@@ -108,7 +108,7 @@ export class Server {
                             throw err;
                         }
 
-                        await nextFunctions[i]();
+                        await nextFunctions[i]!();
                     });
                 }
             }

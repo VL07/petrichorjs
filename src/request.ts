@@ -11,7 +11,6 @@ import { HttpError, throwUnparseableError } from "./error.js";
 import { statusCodes } from "./response.js";
 import { Validators } from "./validate.js";
 import formidable, { Fields, Files } from "formidable";
-import { readFile } from "fs/promises";
 import IncomingForm from "formidable/Formidable.js";
 
 type ParsedMultipart<T> = Readonly<{
@@ -170,8 +169,9 @@ class Cookies {
             const splited = cookie.trim().split("=");
             if (splited.length !== 2) continue;
 
-            const name = splited[0].trim();
-            const value = splited[1].trim();
+            // They are not going to be undefined because i checked the length
+            const name = splited[0]!.trim();
+            const value = splited[1]!.trim();
 
             this.cookies.set(name, value);
         }
@@ -312,7 +312,7 @@ export class Request<
         this.headers = request.headers as Record<string, string>;
         this.query = new QueryParams<V["query"]>(this.url.searchParams, {});
         this.cookies = new Cookies(
-            this.headers.Cookie || this.headers.cookie || ""
+            this.headers["Cookie"] || this.headers["cookie"] || ""
         );
         this.requestedPath = request.url || "/";
         this.routerPath = routerPath;

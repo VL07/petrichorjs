@@ -295,7 +295,7 @@ export class RouteGroup {
                 string,
                 ParserFunction<string | undefined>
             >;
-            const parser = parsers.wildcard;
+            const parser = parsers["wildcard"];
             if (existingMethod) {
                 if (isOptional) {
                     if (existingMethod.optional)
