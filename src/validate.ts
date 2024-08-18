@@ -18,7 +18,7 @@ export type ValidatorResponse<T> =
 
 export type ValidatorFunction<T, U = unknown> = (
     data: U
-) => ValidatorResponse<T>;
+) => ValidatorResponse<T> | Promise<ValidatorResponse<T>>;
 
 export type ValidatorType = "body" | "query";
 
@@ -52,3 +52,4 @@ export type UnvalidatedFunctions<T extends Validators> = keyof Omit<
 > extends never
     ? never
     : Omit<ValidatorFunctions, keyof T>;
+

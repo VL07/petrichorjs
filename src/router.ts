@@ -15,7 +15,7 @@ import {
 } from "./builders.js";
 import { throwUnparseableError, UnparseableError } from "./error.js";
 import { Route } from "./route.js";
-import { Server } from "./server.js";
+import { Server, ServerOptions } from "./server.js";
 
 /*
  * > Order of route execution:
@@ -900,13 +900,14 @@ export class Router<L extends Locals = NonNullable<unknown>> {
      *     router.listen(8000);
      *     // GET http://localhost:8000 => Hello World!
      */
-    listen(port: number): void {
+    listen(port: number, options?: ServerOptions): void {
         const routes = this.buildRouteBuilders();
         const server = new Server(
             routes,
             "localhost",
             port,
-            this.middleware.slice().reverse()
+            this.middleware.slice().reverse(),
+            options || {}
         );
         server.listen();
     }

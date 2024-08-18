@@ -10,6 +10,10 @@
         "type": "git",
         "url": "git+https://github.com/petrichorjs/petrichorjs.git"
     },
+    "exports": {
+        ".": "./dist/index.js",
+        "./validation": "./dist/validation.js"
+    },
     "scripts": {
         "build": "npx tsc",
         "lint": "npx eslint .",

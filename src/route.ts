@@ -32,7 +32,8 @@ export class Route {
             NonNullable<unknown>,
             NonNullable<unknown>,
             Validators
-        >
+        >,
+        logErrors: boolean
     ) {
         const tryOrPopulateErrorResponse = async (
             fn: () => Promise<void> | void
@@ -98,7 +99,7 @@ export class Route {
             } else if (middleware.type === "Validator") {
                 nextFunctions.push(async () => {
                     if (middleware.validatorType === "body") {
-                        const validated = middleware.validator(
+                        const validated = await middleware.validator(
                             await context.request.json()
                         );
                         if (!validated.success) {
@@ -111,8 +112,8 @@ export class Route {
 
                         context.request.validatedJsonBody = validated.data;
                     } else if (middleware.validatorType === "query") {
-                        const validated = middleware.validator(
-                            context.request.query.all()
+                        const validated = await middleware.validator(
+                            context.request.query.toObject()
                         );
                         if (!validated.success) {
                             context.response.unprocessableContent().json({
@@ -133,6 +134,20 @@ export class Route {
         try {
             await nextFunctions.at(-1)!();
         } catch (err) {
+            if (err instanceof HttpError) {
+                if (!context.response.stream) {
+                    context.response
+                        .status(err.status)
+                        .json(err.toResponseJson());
+                }
+
+                return;
+            }
+
+            if (logErrors) {
+                console.error(err);
+            }
+
             if (!context.response.stream) {
                 context.response.internalServerError().json({
                     message: "Internal server error!",

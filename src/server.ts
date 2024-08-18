@@ -9,6 +9,10 @@ import {
 } from "./builders.js";
 import { HttpError } from "./error.js";
 
+export type ServerOptions = Partial<{
+    logErrors: boolean;
+}>;
+
 export class Server {
     private readonly server: http.Server;
 
@@ -16,7 +20,8 @@ export class Server {
         private readonly baseRouteGroup: RouteGroup,
         readonly host: string,
         readonly port: number,
-        readonly routerMiddleware: MiddlewareOrBefore[]
+        readonly routerMiddleware: MiddlewareOrBefore[],
+        readonly options: ServerOptions
     ) {
         this.server = http.createServer((request, response) =>
             this.requestHandler(request, response)
@@ -132,10 +137,13 @@ export class Server {
             route.route.path
         );
 
-        await route.route.handleRequest({
-            request: parsedRequest,
-            response: parsedResponse,
-        });
+        await route.route.handleRequest(
+            {
+                request: parsedRequest,
+                response: parsedResponse,
+            },
+            this.options.logErrors || false
+        );
 
         if (parsedResponse.stream) {
             await parsedResponse.stream.start();

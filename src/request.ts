@@ -124,7 +124,7 @@ class QueryParams<V extends Validators["query"]> {
      */
     all(): Readonly<Map<string, string>> {
         const queryParams = new Map<string, string>();
-        for (const [key, value] of queryParams.entries()) {
+        for (const [key, value] of this.queryParams.entries()) {
             queryParams.set(key, value);
         }
 
@@ -144,7 +144,11 @@ class QueryParams<V extends Validators["query"]> {
         const asObject = {};
 
         for (const [key, value] of this.queryParams.entries()) {
-            multipartRecursiveInsert(key, value, asObject);
+            multipartRecursiveInsert(
+                key,
+                value === "" ? true : value,
+                asObject
+            );
         }
 
         return asObject;
