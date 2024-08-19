@@ -165,7 +165,7 @@ export type JsonValue =
     | JsonValue[]
     | { [key: string]: JsonValue };
 
-class Stream<R extends Path | null, M extends Method[] | null> {
+class Stream<R extends Path | null, M extends Method[] | unknown> {
     private onDataListeners: StreamDataEventListener[] = [];
     private onCloseListeners: StreamCloseEventListener[] = [];
 
@@ -250,7 +250,7 @@ class Stream<R extends Path | null, M extends Method[] | null> {
     }
 }
 
-export class Response<R extends Path | null, M extends Method[] | null> {
+export class Response<R extends Path | null, M extends Method[] | unknown> {
     stream: Stream<R, M> | undefined;
     content: string | undefined;
 

@@ -1,7 +1,5 @@
 import {
     BeforeFunction,
-    JoinLocals,
-    Locals,
     Middleware,
     MiddlewareOrBefore,
 } from "../middlware/middleware.js";
@@ -15,13 +13,19 @@ import {
 import { JoinPaths, Path } from "../types/path.js";
 import { AutocompletePath, CheckPath, PathError } from "../types/pathCheck.js";
 import {
-    JoinValidators,
     UnvalidatedFunctions,
     ValidatedFunctions,
     ValidatorFunction,
     Validators,
     ValidatorType,
 } from "../validate.js";
+import {
+    BeforeFunctionRouteBuilderContext,
+    GroupOutRouteBuilderContext,
+    ParsedRouteBuilderContext,
+    RouteBuilderContext,
+    ValidateRouteBuilderContext,
+} from "./context.js";
 import { BuildableToRoutes } from "./index.js";
 import { RouteBuilder, RouteBuilderUnparsed } from "./route.js";
 import {
@@ -29,121 +33,95 @@ import {
     RouteBuilderUnparsedAllMethods,
 } from "./routeAllMethods.js";
 
-interface RouteGroupBuilderParsed<
-    R extends Path,
-    P extends ParsedParsers,
-    L extends Locals,
-    V extends Validators,
-> {
+interface RouteGroupBuilderParsed<C extends RouteBuilderContext> {
     /** @see {@link RouteBuilderParsed.handle} */
-    handle(): RouteGroup<R, P, L, V>;
+    handle(): RouteGroup<C>;
     use(middleware: Middleware): this;
-    before<T extends BeforeFunction<R, P>>(
+    before<T extends BeforeFunction<C["path"], C["parsed"]>>(
         beforeFunction: T
-    ): RouteGroupBuilderParsed<R, P, JoinLocals<R, T, L, P>, V>;
-    validate<T extends UnvalidatedFunctions<V>>(
+    ): RouteGroupBuilderParsed<BeforeFunctionRouteBuilderContext<C, T>>;
+    validate<T extends UnvalidatedFunctions<C["validators"]>>(
         validators: T
     ): RouteGroupBuilderParsed<
-        R,
-        P,
-        L,
-        JoinValidators<ValidatedFunctions<T>, V>
+        ValidateRouteBuilderContext<C, ValidatedFunctions<T>>
     >;
 }
 
-export interface RouteGroupBuilderUnparsed<
-    R extends Path,
-    P extends ParsedParsers,
-    L extends Locals,
-    V extends Validators,
-> extends RouteGroupBuilderParsed<R, P, L, V> {
+export interface RouteGroupBuilderUnparsed<C extends RouteBuilderContext>
+    extends RouteGroupBuilderParsed<C> {
     use(middleware: Middleware): this;
-    before<T extends BeforeFunction<R, P>>(
+    before<T extends BeforeFunction<C["path"], C["parsed"]>>(
         beforeFunction: T
-    ): RouteGroupBuilderUnparsed<R, P, JoinLocals<R, T, L, P>, V>;
-    validate<T extends UnvalidatedFunctions<V>>(
+    ): RouteGroupBuilderUnparsed<BeforeFunctionRouteBuilderContext<C, T>>;
+    validate<T extends UnvalidatedFunctions<C["validators"]>>(
         validators: T
     ): RouteGroupBuilderUnparsed<
-        R,
-        P,
-        L,
-        JoinValidators<ValidatedFunctions<T>, V>
+        ValidateRouteBuilderContext<C, ValidatedFunctions<T>>
     >;
-    parse<T extends ParserFunctionsForPath<R, P>>(
+    parse<T extends ParserFunctionsForPath<C["path"], C["parsed"]>>(
         parsers: T
-    ): RouteGroupBuilderParsed<R, P & ParsedParsers<T>, L, V>;
+    ): RouteGroupBuilderParsed<ParsedRouteBuilderContext<C, ParsedParsers<T>>>;
 }
 
-interface RouteGroup<
-    R extends Path,
-    P extends ParsedParsers,
-    L extends Locals,
-    V extends Validators,
-> {
+interface RouteGroup<C extends RouteBuilderContext> {
     on<T extends Method, U extends Path>(
         method: T,
         path: CheckPath<U> extends PathError
             ? CheckPath<U> | NoInfer<AutocompletePath<U>>
             : NoInfer<U | AutocompletePath<U>>
-    ): RouteBuilderUnparsed<JoinPaths<R, U>, [T], P, L, V>;
+    ): RouteBuilderUnparsed<GroupOutRouteBuilderContext<C, U, [T]>>;
 
     get<T extends Path>(
         path: CheckPath<T> extends PathError
             ? CheckPath<T> | NoInfer<AutocompletePath<T>>
             : NoInfer<T | AutocompletePath<T>>
-    ): RouteBuilderUnparsed<JoinPaths<R, T>, ["GET"], P, L, V>;
+    ): RouteBuilderUnparsed<GroupOutRouteBuilderContext<C, T, ["GET"]>>;
     post<T extends Path>(
         path: CheckPath<T> extends PathError
             ? CheckPath<T> | NoInfer<AutocompletePath<T>>
             : NoInfer<T | AutocompletePath<T>>
-    ): RouteBuilderUnparsed<JoinPaths<R, T>, ["POST"], P, L, V>;
+    ): RouteBuilderUnparsed<GroupOutRouteBuilderContext<C, T, ["POST"]>>;
     put<T extends Path>(
         path: CheckPath<T> extends PathError
             ? CheckPath<T> | NoInfer<AutocompletePath<T>>
             : NoInfer<T | AutocompletePath<T>>
-    ): RouteBuilderUnparsed<JoinPaths<R, T>, ["PUT"], P, L, V>;
+    ): RouteBuilderUnparsed<GroupOutRouteBuilderContext<C, T, ["PUT"]>>;
     delete<T extends Path>(
         path: CheckPath<T> extends PathError
             ? CheckPath<T> | NoInfer<AutocompletePath<T>>
             : NoInfer<T | AutocompletePath<T>>
-    ): RouteBuilderUnparsed<JoinPaths<R, T>, ["DELETE"], P, L, V>;
+    ): RouteBuilderUnparsed<GroupOutRouteBuilderContext<C, T, ["DELETE"]>>;
 
     all<T extends Path>(
         path: CheckPath<T> extends PathError
             ? CheckPath<T> | NoInfer<AutocompletePath<T>>
             : NoInfer<T | AutocompletePath<T>>
-    ): RouteBuilderUnparsedAllMethods<JoinPaths<R, T>, P, L, V>;
+    ): RouteBuilderUnparsedAllMethods<
+        GroupOutRouteBuilderContext<C, T, unknown>
+    >;
 
     group<T extends Path>(
         path: CheckPath<T> extends PathError
             ? (PathError & CheckPath<T>) | NoInfer<AutocompletePath<T>>
             : NoInfer<T | AutocompletePath<T>>
-    ): RouteGroupBuilderUnparsed<JoinPaths<R, T>, P, L, V>;
+    ): RouteGroupBuilderUnparsed<GroupOutRouteBuilderContext<C, T, unknown>>;
 }
 
-export class RouteGroupBuilder<
-        R extends Path,
-        P extends ParsedParsers,
-        L extends Locals,
-        V extends Validators,
-    >
-    implements RouteGroupBuilderUnparsed<R, P, L, V>, BuildableToRoutes
+export class RouteGroupBuilder<C extends RouteBuilderContext>
+    implements RouteGroupBuilderUnparsed<C>, BuildableToRoutes
 {
     parsers: ParserFunctions | undefined;
-    routeGroup: RouteGroupBackend<R, P, L, V> | undefined;
+    routeGroup: RouteGroupBackend<C> | undefined;
     middleware: MiddlewareOrBefore[] = [];
 
-    constructor(readonly path: R) {}
+    constructor(readonly path: C["path"]) {}
 
-    parse<T extends ParserFunctionsForPath<R, P>>(
+    parse<T extends ParserFunctionsForPath<C["path"], C["parsed"]>>(
         parsers: T
-    ): RouteGroupBuilderParsed<R, P & ParsedParsers<T>, L, V> {
+    ): RouteGroupBuilderParsed<ParsedRouteBuilderContext<C, ParsedParsers<T>>> {
         this.parsers = parsers;
         return this as unknown as RouteGroupBuilderParsed<
-            R,
-            P & ParsedParsers<T>,
-            L,
-            V
+            ParsedRouteBuilderContext<C, ParsedParsers<T>>
         >;
     }
 
@@ -155,9 +133,9 @@ export class RouteGroupBuilder<
         return this;
     }
 
-    before<T extends BeforeFunction<R, P>>(
+    before<T extends BeforeFunction<C["path"], C["parsed"]>>(
         beforeFunction: T
-    ): RouteGroupBuilderUnparsed<R, P, JoinLocals<R, T, L, P>, V> {
+    ): RouteGroupBuilderUnparsed<BeforeFunctionRouteBuilderContext<C, T>> {
         this.middleware.push({
             type: "Before",
             before: beforeFunction as unknown as BeforeFunction<
@@ -168,20 +146,14 @@ export class RouteGroupBuilder<
         });
 
         return this as unknown as RouteGroupBuilderUnparsed<
-            R,
-            P,
-            JoinLocals<R, T, L, P>,
-            V
+            BeforeFunctionRouteBuilderContext<C, T>
         >;
     }
 
-    validate<T extends UnvalidatedFunctions<V>>(
+    validate<T extends UnvalidatedFunctions<C["validators"]>>(
         validators: T
     ): RouteGroupBuilderUnparsed<
-        R,
-        P,
-        L,
-        JoinValidators<ValidatedFunctions<T>, V>
+        ValidateRouteBuilderContext<C, ValidatedFunctions<T>>
     > {
         for (const [type, validator] of Object.entries(validators)) {
             this.middleware.push({
@@ -192,15 +164,12 @@ export class RouteGroupBuilder<
         }
 
         return this as unknown as RouteGroupBuilderUnparsed<
-            R,
-            P,
-            L,
-            JoinValidators<ValidatedFunctions<T>, V>
+            ValidateRouteBuilderContext<C, ValidatedFunctions<T>>
         >;
     }
 
-    handle(): RouteGroup<R, P, L, V> {
-        this.routeGroup = new RouteGroupBackend(this.path);
+    handle(): RouteGroup<C> {
+        this.routeGroup = new RouteGroupBackend<C>(this.path);
         return this.routeGroup;
     }
 
@@ -221,22 +190,20 @@ export class RouteGroupBuilder<
     }
 }
 
-class RouteGroupBackend<
-        R extends Path,
-        P extends ParsedParsers,
-        L extends Locals,
-        V extends Validators,
-    >
-    implements RouteGroup<R, P, L, V>, BuildableToRoutes
+class RouteGroupBackend<C extends RouteBuilderContext>
+    implements RouteGroup<C>, BuildableToRoutes
 {
     routeBuilders: BuildableToRoutes[] = [];
     groupBuilders: BuildableToRoutes[] = [];
 
-    constructor(readonly path: R) {}
+    constructor(readonly path: C["path"]) {}
 
-    private joinPaths<T extends Path>(path: T): JoinPaths<R, T> {
+    private joinPaths<T extends Path>(path: T): JoinPaths<C["path"], T> {
         return (((this.path as Path) === "/" ? "" : this.path) +
-            ((path as Path) === "/" ? "" : path) || "/") as JoinPaths<R, T>;
+            ((path as Path) === "/" ? "" : path) || "/") as JoinPaths<
+            C["path"],
+            T
+        >;
     }
 
     on<T extends Method, U extends Path>(
@@ -244,11 +211,10 @@ class RouteGroupBackend<
         path: CheckPath<U> extends PathError
             ? (PathError & CheckPath<U>) | NoInfer<AutocompletePath<U>>
             : NoInfer<U | AutocompletePath<U>>
-    ): RouteBuilderUnparsed<JoinPaths<R, U>, [T], P, L, V> {
-        const builder = new RouteBuilder<JoinPaths<R, U>, [T], P, L, V>(
-            this.joinPaths(path as U),
-            [method]
-        );
+    ): RouteBuilderUnparsed<GroupOutRouteBuilderContext<C, U, [T]>> {
+        const builder = new RouteBuilder<
+            GroupOutRouteBuilderContext<C, U, [T]>
+        >(this.joinPaths(path as U), [method]);
         this.routeBuilders.push(builder);
 
         return builder;
@@ -258,7 +224,7 @@ class RouteGroupBackend<
         path: CheckPath<T> extends PathError
             ? (PathError & CheckPath<T>) | NoInfer<AutocompletePath<T>>
             : NoInfer<T | AutocompletePath<T>>
-    ): RouteBuilderUnparsed<JoinPaths<R, T>, ["GET"], P, L, V> {
+    ): RouteBuilderUnparsed<GroupOutRouteBuilderContext<C, T, ["GET"]>> {
         return this.on("GET", path);
     }
 
@@ -266,7 +232,7 @@ class RouteGroupBackend<
         path: CheckPath<T> extends PathError
             ? (PathError & CheckPath<T>) | NoInfer<AutocompletePath<T>>
             : NoInfer<T | AutocompletePath<T>>
-    ): RouteBuilderUnparsed<JoinPaths<R, T>, ["POST"], P, L, V> {
+    ): RouteBuilderUnparsed<GroupOutRouteBuilderContext<C, T, ["POST"]>> {
         return this.on("POST", path);
     }
 
@@ -274,7 +240,7 @@ class RouteGroupBackend<
         path: CheckPath<T> extends PathError
             ? (PathError & CheckPath<T>) | NoInfer<AutocompletePath<T>>
             : NoInfer<T | AutocompletePath<T>>
-    ): RouteBuilderUnparsed<JoinPaths<R, T>, ["PUT"], P, L, V> {
+    ): RouteBuilderUnparsed<GroupOutRouteBuilderContext<C, T, ["PUT"]>> {
         return this.on("PUT", path);
     }
 
@@ -282,7 +248,7 @@ class RouteGroupBackend<
         path: CheckPath<T> extends PathError
             ? (PathError & CheckPath<T>) | NoInfer<AutocompletePath<T>>
             : NoInfer<T | AutocompletePath<T>>
-    ): RouteBuilderUnparsed<JoinPaths<R, T>, ["DELETE"], P, L, V> {
+    ): RouteBuilderUnparsed<GroupOutRouteBuilderContext<C, T, ["DELETE"]>> {
         return this.on("DELETE", path);
     }
 
@@ -290,18 +256,17 @@ class RouteGroupBackend<
         path: CheckPath<T> extends PathError
             ? (PathError & CheckPath<T>) | NoInfer<AutocompletePath<T>>
             : NoInfer<T | AutocompletePath<T>>
-    ): RouteBuilderUnparsedAllMethods<JoinPaths<R, T>, P, L, V> {
+    ): RouteBuilderUnparsedAllMethods<
+        GroupOutRouteBuilderContext<C, T, unknown>
+    > {
         const builder = new RouteBuilderAllMethods(
-            (this.path + path) as JoinPaths<R, T>
+            (this.path + path) as JoinPaths<C["path"], T>
         );
         this.routeBuilders.push(builder);
 
         // IDK why this one needs the as while the on method dosnt
         return builder as unknown as RouteBuilderUnparsedAllMethods<
-            JoinPaths<R, T>,
-            P,
-            L,
-            V
+            GroupOutRouteBuilderContext<C, T, unknown>
         >;
     }
 
@@ -309,10 +274,10 @@ class RouteGroupBackend<
         path: CheckPath<T> extends PathError
             ? (PathError & CheckPath<T>) | NoInfer<AutocompletePath<T>>
             : NoInfer<T | AutocompletePath<T>>
-    ): RouteGroupBuilderUnparsed<JoinPaths<R, T>, P, L, V> {
-        const groupBuilder = new RouteGroupBuilder<JoinPaths<R, T>, P, L, V>(
-            (this.path + path) as JoinPaths<R, T>
-        );
+    ): RouteGroupBuilderUnparsed<GroupOutRouteBuilderContext<C, T, unknown>> {
+        const groupBuilder = new RouteGroupBuilder<
+            GroupOutRouteBuilderContext<C, T, unknown>
+        >((this.path + path) as JoinPaths<C["path"], T>);
         this.groupBuilders.push(groupBuilder);
 
         return groupBuilder;

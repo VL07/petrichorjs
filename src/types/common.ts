@@ -11,3 +11,8 @@ export type OptionalObjectItem<Name extends string> = {
  * them look like one object.
  */
 export type Mix<T> = { [K in keyof T]: T[K] };
+
+export type EmptyObject = NonNullable<unknown>;
+
+export type Prettify<T> = { [K in keyof T]: T[K] } & {};
+

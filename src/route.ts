@@ -1,3 +1,4 @@
+import { RouteBuilderContext } from "./builders/context.js";
 import { HttpError } from "./error.js";
 import {
     MiddlewareContext,
@@ -8,31 +9,18 @@ import { Method } from "./router.js";
 import { HandlerFunction, HandlerFunctionArguments } from "./types/handler.js";
 import { ParserFunctions } from "./types/parser.js";
 import { Path } from "./types/path.js";
-import { Validators } from "./validate.js";
 
 export class Route {
     constructor(
         readonly path: Path,
         readonly method: Method | null,
         public parsers: ParserFunctions,
-        private readonly handler: HandlerFunction<
-            Path,
-            Method[] | null,
-            NonNullable<unknown>,
-            NonNullable<unknown>,
-            Validators
-        >,
+        private readonly handler: HandlerFunction<RouteBuilderContext>,
         public middleware: MiddlewareOrBefore[]
     ) {}
 
     async handleRequest(
-        params: HandlerFunctionArguments<
-            Path,
-            Method[] | null,
-            NonNullable<unknown>,
-            NonNullable<unknown>,
-            Validators
-        >,
+        params: HandlerFunctionArguments<RouteBuilderContext>,
         logErrors: boolean
     ) {
         const tryOrPopulateErrorResponse = async (

@@ -8,7 +8,7 @@ import {
     ParsedParsers,
     ParserFunctions,
 } from "../types/parser.js";
-import { Mix } from "../types/common.js";
+import { Prettify } from "../types/common.js";
 
 export type NextFunction = () => Promise<void> | void;
 
@@ -67,7 +67,7 @@ export type JoinLocals<
     T extends BeforeFunction<R, P>,
     U extends Locals,
     P extends ParserFunctions,
-> = Mix<Omit<U, keyof Awaited<ReturnType<T>>> & Awaited<ReturnType<T>>>;
+> = Prettify<Omit<U, keyof Awaited<ReturnType<T>>> & Awaited<ReturnType<T>>>;
 
 /**
  * Wrap the middleware function in this function to get typechecking.

@@ -1,3 +1,4 @@
+import { RouteBuilderContext } from "./builders/context.js";
 import { BuildableToRoutes } from "./builders/index.js";
 import { RouteBuilder, RouteBuilderUnparsed } from "./builders/route.js";
 import {
@@ -530,13 +531,7 @@ export class Router<L extends Locals = NonNullable<unknown>> {
         route: CheckPath<R> extends PathError
             ? CheckPath<R> | NoInfer<AutocompletePath<R>>
             : NoInfer<R | AutocompletePath<R>>
-    ): RouteBuilderUnparsed<
-        R,
-        ["GET"],
-        NonNullable<unknown>,
-        NonNullable<unknown>,
-        NonNullable<unknown>
-    > {
+    ): RouteBuilderUnparsed<RouteBuilderContext<R, ["GET"]>> {
         return this.on("GET", route);
     }
 
@@ -548,13 +543,7 @@ export class Router<L extends Locals = NonNullable<unknown>> {
         route: CheckPath<R> extends PathError
             ? CheckPath<R> | NoInfer<AutocompletePath<R>>
             : NoInfer<R | AutocompletePath<R>>
-    ): RouteBuilderUnparsed<
-        R,
-        ["POST"],
-        NonNullable<unknown>,
-        NonNullable<unknown>,
-        NonNullable<unknown>
-    > {
+    ): RouteBuilderUnparsed<RouteBuilderContext<R, ["POST"]>> {
         return this.on("POST", route);
     }
 
@@ -563,13 +552,7 @@ export class Router<L extends Locals = NonNullable<unknown>> {
         route: CheckPath<R> extends PathError
             ? CheckPath<R> | NoInfer<AutocompletePath<R>>
             : NoInfer<R | AutocompletePath<R>>
-    ): RouteBuilderUnparsed<
-        R,
-        ["PUT"],
-        NonNullable<unknown>,
-        NonNullable<unknown>,
-        NonNullable<unknown>
-    > {
+    ): RouteBuilderUnparsed<RouteBuilderContext<R, ["PUT"]>> {
         return this.on("PUT", route);
     }
 
@@ -581,13 +564,7 @@ export class Router<L extends Locals = NonNullable<unknown>> {
         route: CheckPath<R> extends PathError
             ? CheckPath<R> | NoInfer<AutocompletePath<R>>
             : NoInfer<R | AutocompletePath<R>>
-    ): RouteBuilderUnparsed<
-        R,
-        ["DELETE"],
-        NonNullable<unknown>,
-        NonNullable<unknown>,
-        NonNullable<unknown>
-    > {
+    ): RouteBuilderUnparsed<RouteBuilderContext<R, ["DELETE"]>> {
         return this.on("DELETE", route);
     }
 
@@ -607,20 +584,11 @@ export class Router<L extends Locals = NonNullable<unknown>> {
         route: CheckPath<R> extends PathError
             ? CheckPath<R> | NoInfer<AutocompletePath<R>>
             : NoInfer<R | AutocompletePath<R>>
-    ): RouteBuilderUnparsed<
-        R,
-        [M],
-        NonNullable<unknown>,
-        NonNullable<unknown>,
-        NonNullable<unknown>
-    > {
-        const builder = new RouteBuilder<
-            R,
-            [M],
-            NonNullable<unknown>,
-            NonNullable<unknown>,
-            NonNullable<unknown>
-        >(route as R, [method]);
+    ): RouteBuilderUnparsed<RouteBuilderContext<R, [M]>> {
+        const builder = new RouteBuilder<RouteBuilderContext<R, [M]>>(
+            route as R,
+            [method]
+        );
         this.routeBuilders.push(builder);
 
         return builder;
@@ -640,18 +608,10 @@ export class Router<L extends Locals = NonNullable<unknown>> {
         route: CheckPath<R> extends PathError
             ? CheckPath<R> | NoInfer<AutocompletePath<R>>
             : NoInfer<R | AutocompletePath<R>>
-    ): RouteBuilderUnparsedAllMethods<
-        R,
-        NonNullable<unknown>,
-        NonNullable<unknown>,
-        NonNullable<unknown>
-    > {
-        const builder = new RouteBuilderAllMethods<
-            R,
-            NonNullable<unknown>,
-            NonNullable<unknown>,
-            NonNullable<unknown>
-        >(route as R);
+    ): RouteBuilderUnparsedAllMethods<RouteBuilderContext<R>> {
+        const builder = new RouteBuilderAllMethods<RouteBuilderContext<R>>(
+            route as R
+        );
         this.routeBuilders.push(builder);
 
         return builder;
@@ -738,18 +698,10 @@ export class Router<L extends Locals = NonNullable<unknown>> {
         path: CheckPath<R> extends PathError
             ? (PathError & CheckPath<R>) | NoInfer<AutocompletePath<R>>
             : NoInfer<R | AutocompletePath<R>>
-    ): RouteGroupBuilderUnparsed<
-        R,
-        NonNullable<unknown>,
-        NonNullable<unknown>,
-        NonNullable<unknown>
-    > {
-        const builder = new RouteGroupBuilder<
-            R,
-            NonNullable<unknown>,
-            NonNullable<unknown>,
-            NonNullable<unknown>
-        >(path as R);
+    ): RouteGroupBuilderUnparsed<RouteBuilderContext<R>> {
+        const builder = new RouteGroupBuilder<RouteBuilderContext<R>>(
+            path as R
+        );
         this.groupBuilders.push(builder);
 
         return builder;

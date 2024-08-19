@@ -1,12 +1,9 @@
 import {
     BeforeFunction,
-    JoinLocals,
-    Locals,
     Middleware,
     MiddlewareOrBefore,
 } from "../middlware/middleware.js";
 import { Route } from "../route.js";
-import { Method } from "../router.js";
 import { HandlerFunction } from "../types/handler.js";
 import {
     ParsedParsers,
@@ -15,82 +12,68 @@ import {
 } from "../types/parser.js";
 import { Path } from "../types/path.js";
 import {
-    JoinValidators,
     UnvalidatedFunctions,
     ValidatedFunctions,
     ValidatorFunction,
     Validators,
     ValidatorType,
 } from "../validate.js";
+import {
+    BeforeFunctionRouteBuilderContext,
+    ParsedRouteBuilderContext,
+    RouteBuilderContext,
+    ValidateRouteBuilderContext,
+} from "./context.js";
 import { BuildableToRoutes } from "./index.js";
 
-export interface RouteBuilderParsedAllMethods<
-    R extends Path,
-    P extends ParsedParsers,
-    L extends Locals,
-    V extends Validators,
-> {
-    handle(handler: HandlerFunction<R, null, P, L, V>): void;
+export interface RouteBuilderParsedAllMethods<C extends RouteBuilderContext> {
+    handle(handler: HandlerFunction<C>): void;
     use(middleware: Middleware): this;
-    before<T extends BeforeFunction<R, P>>(
+    before<T extends BeforeFunction<C["path"], C["parsed"]>>(
         beforeFunction: T
-    ): RouteBuilderParsedAllMethods<R, P, JoinLocals<R, T, L, P>, V>;
-    validate<T extends UnvalidatedFunctions<V>>(
+    ): RouteBuilderParsedAllMethods<BeforeFunctionRouteBuilderContext<C, T>>;
+    validate<T extends UnvalidatedFunctions<C["validators"]>>(
         validators: T
     ): RouteBuilderParsedAllMethods<
-        R,
-        P,
-        L,
-        JoinValidators<ValidatedFunctions<T>, V>
+        ValidateRouteBuilderContext<C, ValidatedFunctions<T>>
     >;
 }
 
-export interface RouteBuilderUnparsedAllMethods<
-    R extends Path,
-    P extends ParsedParsers,
-    L extends Locals,
-    V extends Validators,
-> extends RouteBuilderParsedAllMethods<R, P, L, V> {
+export interface RouteBuilderUnparsedAllMethods<C extends RouteBuilderContext>
+    extends RouteBuilderParsedAllMethods<C> {
     use(middleware: Middleware): this;
-    before<T extends BeforeFunction<R, P>>(
+    before<T extends BeforeFunction<C["path"], C["parsed"]>>(
         beforeFunction: T
-    ): RouteBuilderUnparsedAllMethods<R, P, JoinLocals<R, T, L, P>, V>;
-    validate<T extends UnvalidatedFunctions<V>>(
+    ): RouteBuilderUnparsedAllMethods<BeforeFunctionRouteBuilderContext<C, T>>;
+    validate<T extends UnvalidatedFunctions<C["validators"]>>(
         validators: T
     ): RouteBuilderUnparsedAllMethods<
-        R,
-        P,
-        L,
-        JoinValidators<ValidatedFunctions<T>, V>
+        ValidateRouteBuilderContext<C, ValidatedFunctions<T>>
     >;
-    parse<T extends ParserFunctionsForPath<R, P>>(
+    parse<T extends ParserFunctionsForPath<C["path"], C["parsed"]>>(
         parsers: T
-    ): RouteBuilderParsedAllMethods<R, P & ParsedParsers<T>, L, V>;
+    ): RouteBuilderParsedAllMethods<
+        ParsedRouteBuilderContext<C, ParsedParsers<T>>
+    >;
 }
 
-export class RouteBuilderAllMethods<
-        R extends Path,
-        P extends ParsedParsers,
-        L extends Locals,
-        V extends Validators,
-    >
-    implements RouteBuilderUnparsedAllMethods<R, P, L, V>, BuildableToRoutes
+export class RouteBuilderAllMethods<C extends RouteBuilderContext>
+    implements RouteBuilderUnparsedAllMethods<C>, BuildableToRoutes
 {
     parsers: ParserFunctions | undefined;
-    handler: HandlerFunction<R, null, P, L, V> | undefined;
+    handler: HandlerFunction<C> | undefined;
     middleware: MiddlewareOrBefore[] = [];
 
-    constructor(readonly path: R) {}
+    constructor(readonly path: C["path"]) {}
 
-    parse<T extends ParserFunctionsForPath<R, P>>(
+    parse<T extends ParserFunctionsForPath<C["path"], C["parsed"]>>(
         parsers: T
-    ): RouteBuilderParsedAllMethods<R, P & ParsedParsers<T>, L, V> {
+    ): RouteBuilderParsedAllMethods<
+        ParsedRouteBuilderContext<C, ParsedParsers<T>>
+    > {
         this.parsers = parsers;
         return this as unknown as RouteBuilderParsedAllMethods<
-            R,
-            P & ParsedParsers<T>,
-            L,
-            V
+            ParsedRouteBuilderContext<C, ParsedParsers<T>>
         >;
     }
 
@@ -102,9 +85,9 @@ export class RouteBuilderAllMethods<
         return this;
     }
 
-    before<T extends BeforeFunction<R, P>>(
+    before<T extends BeforeFunction<C["path"], C["parsed"]>>(
         beforeFunction: T
-    ): RouteBuilderUnparsedAllMethods<R, P, JoinLocals<R, T, L, P>, V> {
+    ): RouteBuilderUnparsedAllMethods<BeforeFunctionRouteBuilderContext<C, T>> {
         this.middleware.push({
             type: "Before",
             before: beforeFunction as unknown as BeforeFunction<
@@ -115,20 +98,14 @@ export class RouteBuilderAllMethods<
         });
 
         return this as unknown as RouteBuilderUnparsedAllMethods<
-            R,
-            P,
-            JoinLocals<R, T, L, P>,
-            V
+            BeforeFunctionRouteBuilderContext<C, T>
         >;
     }
 
-    validate<T extends UnvalidatedFunctions<V>>(
+    validate<T extends UnvalidatedFunctions<C["validators"]>>(
         validators: T
     ): RouteBuilderUnparsedAllMethods<
-        R,
-        P,
-        L,
-        JoinValidators<ValidatedFunctions<T>, V>
+        ValidateRouteBuilderContext<C, ValidatedFunctions<T>>
     > {
         for (const [type, validator] of Object.entries(validators)) {
             this.middleware.push({
@@ -139,14 +116,11 @@ export class RouteBuilderAllMethods<
         }
 
         return this as unknown as RouteBuilderUnparsedAllMethods<
-            R,
-            P,
-            L,
-            JoinValidators<ValidatedFunctions<T>, V>
+            ValidateRouteBuilderContext<C, ValidatedFunctions<T>>
         >;
     }
 
-    handle(handler: HandlerFunction<R, null, P, L, V>): void {
+    handle(handler: HandlerFunction<C>): void {
         this.handler = handler;
     }
 
@@ -158,13 +132,7 @@ export class RouteBuilderAllMethods<
                 this.path,
                 null,
                 this.parsers || {},
-                this.handler as unknown as HandlerFunction<
-                    Path,
-                    Method[] | null,
-                    NonNullable<unknown>,
-                    NonNullable<unknown>,
-                    Validators
-                >,
+                this.handler as HandlerFunction<RouteBuilderContext>,
                 this.middleware.slice()
             ),
         ];

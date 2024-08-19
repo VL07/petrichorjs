@@ -200,7 +200,7 @@ class Cookies {
 /** The request object for incomming requests. */
 export class Request<
     R extends Path | null,
-    M extends Method[] | null,
+    M extends Method[] | unknown,
     P extends ParsedParsers,
     L extends Locals,
     V extends Validators,
