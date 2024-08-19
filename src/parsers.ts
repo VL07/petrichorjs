@@ -1,4 +1,4 @@
-import { CustomParserFunction } from "./builders.js";
+import { CustomParserFunction } from "./types/parser.js";
 
 /**
  * Parse a param and ensure it's a number, uses the parseInt function under the
@@ -31,3 +31,4 @@ export const intParser: CustomParserFunction<string | undefined, number> = ({
 
     return asInt;
 };
+

@@ -1,17 +1,14 @@
 import http from "http";
 import type { Server } from "./server.js";
-import type { Method, Path } from "./router.js";
-import type {
-    Locals,
-    Parsed,
-    ParserFunction,
-    ParserFunctions,
-} from "./builders.js";
+import type { Method } from "./router.js";
 import { HttpError, throwUnparseableError } from "./error.js";
 import { statusCodes } from "./response.js";
 import { Validators } from "./validate.js";
 import formidable, { Fields, Files } from "formidable";
 import IncomingForm from "formidable/Formidable.js";
+import { ParsedParsers, ParserFunction } from "./types/parser.js";
+import { Path } from "./types/path.js";
+import { Locals } from "./middlware/middleware.js";
 
 type ParsedMultipart<T> = Readonly<{
     [key: string]: T | T[] | ParsedMultipart<T>;
@@ -204,7 +201,7 @@ class Cookies {
 export class Request<
     R extends Path | null,
     M extends Method[] | null,
-    P extends Parsed<ParserFunctions>,
+    P extends ParsedParsers,
     L extends Locals,
     V extends Validators,
 > {

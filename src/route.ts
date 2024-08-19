@@ -1,13 +1,13 @@
+import { HttpError } from "./error.js";
 import {
-    HandlerFunction,
-    HandlerFunctionArguments,
     MiddlewareContext,
     MiddlewareOrBefore,
     NextFunction,
-    ParserFunctions,
-} from "./builders.js";
-import { HttpError } from "./error.js";
-import type { Method, Path } from "./router.js";
+} from "./middlware/middleware.js";
+import { Method } from "./router.js";
+import { HandlerFunction, HandlerFunctionArguments } from "./types/handler.js";
+import { ParserFunctions } from "./types/parser.js";
+import { Path } from "./types/path.js";
 import { Validators } from "./validate.js";
 
 export class Route {

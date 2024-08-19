@@ -1,6 +1,7 @@
 import http from "http";
-import type { Method, Path } from "./router.js";
+import type { Method } from "./router.js";
 import type { Server } from "./server.js";
+import { Path } from "./types/path.js";
 
 export type InfoStatusCode = 100 | 101 | 102 | 103;
 export type SuccessStatusCode =
