@@ -1,6 +1,5 @@
-import { Middleware } from "../builders.js";
 import { RedirectStatusCode, statusCodes } from "../response.js";
-import { middleware } from "./middleware.js";
+import { Middleware, middleware } from "./middleware.js";
 
 interface TrailingSlashMiddlewareConfig {
     trailingSlash: boolean;
@@ -70,3 +69,4 @@ export function trailingSlash(
         await next();
     });
 }
+

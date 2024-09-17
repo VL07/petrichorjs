@@ -1,6 +1,7 @@
 import http from "http";
-import type { Method, Path } from "./router.js";
+import type { Method } from "./router.js";
 import type { Server } from "./server.js";
+import { Path } from "./types/path.js";
 
 export type InfoStatusCode = 100 | 101 | 102 | 103;
 export type SuccessStatusCode =
@@ -164,7 +165,7 @@ export type JsonValue =
     | JsonValue[]
     | { [key: string]: JsonValue };
 
-class Stream<R extends Path | null, M extends Method[] | null> {
+class Stream<R extends Path | null, M extends Method[] | unknown> {
     private onDataListeners: StreamDataEventListener[] = [];
     private onCloseListeners: StreamCloseEventListener[] = [];
 
@@ -249,7 +250,7 @@ class Stream<R extends Path | null, M extends Method[] | null> {
     }
 }
 
-export class Response<R extends Path | null, M extends Method[] | null> {
+export class Response<R extends Path | null, M extends Method[] | unknown> {
     stream: Stream<R, M> | undefined;
     content: string | undefined;
 

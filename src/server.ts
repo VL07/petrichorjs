@@ -1,13 +1,14 @@
 import http from "node:http";
-import { Path, RouteGroup } from "./router.js";
+import { RouteGroup } from "./router.js";
 import { Request } from "./request.js";
 import { Response } from "./response.js";
+import { HttpError } from "./error.js";
 import {
     MiddlewareContext,
     MiddlewareOrBefore,
     NextFunction,
-} from "./builders.js";
-import { HttpError } from "./error.js";
+} from "./middlware/middleware.js";
+import { Path } from "./types/path.js";
 
 export type ServerOptions = Partial<{
     logErrors: boolean;
