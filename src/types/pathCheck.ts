@@ -74,7 +74,10 @@ type DynamicOnlyOptionalPath<T extends Path> =
  */
 export type CheckPath<T extends Path> = T extends "/" ? T : PathRecursive<T>;
 
-/** Used to give autocomplete suggestions on a path. Doesn't work currently. */
+/**
+ * Used to give autocomplete suggestions on a path. Doesn't work currently.
+ * @deprecated
+ */
 export type AutocompletePath<T extends Path> =
     `${T}${(LastSlug<T> extends `/:${infer Name}` ? (Name extends `${string}?` ? never : "?/:" | "?/*?" | "?") : never) | (ContainsOptional<T> extends true ? never : "/" | "/*" | "/*?")}`;
 
