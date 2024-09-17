@@ -1,4 +1,4 @@
-import { JsonValue, StatusCode } from "./response.js";
+import { StatusCode } from "./response/statusCode.js";
 
 /** An error object that gets converted into a http response on requests */
 export class HttpError extends Error {
@@ -9,7 +9,7 @@ export class HttpError extends Error {
         super(`Http Error: ${status} - ${message}`);
     }
 
-    toResponseJson(): JsonValue {
+    toResponseJson(): unknown {
         return {
             message: this.message,
         };

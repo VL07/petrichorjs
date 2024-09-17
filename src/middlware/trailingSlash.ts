@@ -1,4 +1,4 @@
-import { RedirectStatusCode, statusCodes } from "../response.js";
+import { RedirectStatusCode, statusCodes } from "../response/statusCode.js";
 import { Middleware, middleware } from "./middleware.js";
 
 interface TrailingSlashMiddlewareConfig {

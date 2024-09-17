@@ -1,6 +1,6 @@
 import { DefaultOrParsedParams } from "./parser.js";
-import { Request } from "../request.js";
-import { Response } from "../response.js";
+import { Request } from "../request/request.js";
+import { Response } from "../response/response.js";
 import { RouteBuilderContext } from "../builders/context.js";
 
 export type HandlerFunctionArguments<C extends RouteBuilderContext> = {

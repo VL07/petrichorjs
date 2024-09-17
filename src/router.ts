@@ -18,7 +18,8 @@ import {
     MiddlewareOrBefore,
 } from "./middlware/middleware.js";
 import { Route } from "./route.js";
-import { Server, ServerOptions } from "./server.js";
+import { ServerOptions, UseServerFunction } from "./server/server.js";
+import { Mix } from "./types/common.js";
 import { ParserFunction } from "./types/parser.js";
 import { Path } from "./types/path.js";
 import { AutocompletePath, CheckPath, PathError } from "./types/pathCheck.js";
@@ -745,16 +746,22 @@ export class Router<L extends Locals = NonNullable<unknown>> {
      *     router.listen(8000);
      *     // GET http://localhost:8000 => Hello World!
      */
-    listen(port: number, options?: ServerOptions): void {
+    listen(
+        port: number,
+        server: UseServerFunction,
+        options?: Mix<Omit<ServerOptions, "port">>
+    ): void {
         const routes = this.buildRouteBuilders();
-        const server = new Server(
+        const createdServer = server(
             routes,
-            "localhost",
-            port,
             this.middleware.slice().reverse(),
-            options || {}
+            {
+                ...options,
+                port: port,
+            }
         );
-        server.listen();
+
+        createdServer.listen();
     }
 }
 
