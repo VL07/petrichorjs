@@ -16,7 +16,10 @@ export class HttpError extends Error {
     }
 }
 
-/** Throws an {@link UnparseableError} error. Only ment for internal use. */
+/**
+ * Throws an {@link UnparseableError} error. Only ment for internal use.
+ * @internal
+ */
 export function throwUnparseableError(name: string): never {
     throw new UnparseableError(name);
 }
