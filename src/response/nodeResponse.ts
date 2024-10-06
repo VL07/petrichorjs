@@ -1,4 +1,4 @@
-import { Method } from "../router.js";
+import { Method } from "../router/router.js";
 import { Path } from "../types/path.js";
 import { CookieOptions, Response } from "./response.js";
 import http from "node:http";

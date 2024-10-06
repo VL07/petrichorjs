@@ -1,4 +1,4 @@
-import { Method } from "../router.js";
+import { Method } from "../router/router.js";
 import { Path } from "../types/path.js";
 
 type StreamDataEventListener = (chunk: string) => Promise<void> | void;

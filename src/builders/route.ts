@@ -4,7 +4,7 @@ import {
     MiddlewareOrBefore,
 } from "../middlware/middleware.js";
 import { Route } from "../route.js";
-import { Method } from "../router.js";
+import { Method } from "../router/router.js";
 import { HandlerFunction } from "../types/handler.js";
 import {
     ParsedParsers,

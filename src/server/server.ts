@@ -1,4 +1,4 @@
-import { Method, RouteGroup } from "../router.js";
+import { Method } from "../router/router.js";
 import { Request } from "../request/request.js";
 import { Response } from "../response/response.js";
 import { Path } from "../types/path.js";
@@ -13,6 +13,7 @@ import { Validators } from "../validate.js";
 import { HttpError } from "../error.js";
 import { statusCodes } from "../response/statusCode.js";
 import { buildNextMiddlewareFunctions } from "../nextFunctionsBuilder.js";
+import { Router } from "../router/router.js";
 
 export type Port = number;
 
@@ -22,7 +23,7 @@ export interface ServerOptions {
 }
 
 export type UseServerFunction = (
-    rootRouteGroup: RouteGroup,
+    router: Router,
     routerMiddleware: MiddlewareOrBefore[],
     options: ServerOptions
 ) => Server;
@@ -32,7 +33,7 @@ export abstract class Server {
     protected readonly host: string;
 
     constructor(
-        protected rootRouteGroup: RouteGroup,
+        protected router: Router,
         protected routerMiddleware: MiddlewareOrBefore[],
         options: ServerOptions
     ) {
@@ -46,14 +47,11 @@ export abstract class Server {
         path: Path,
         method: Method
     ): Promise<[Route, Record<string, unknown>] | undefined> {
-        const routeAndParams = this.rootRouteGroup.getRouteFromPath(
-            path,
-            method
-        );
+        const routeAndParams = this.router.getRoute(path, method);
 
         if (!routeAndParams) return undefined;
 
-        return [routeAndParams.route, routeAndParams.params];
+        return routeAndParams;
     }
 
     protected async handleRequest(

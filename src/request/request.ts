@@ -1,5 +1,5 @@
 import { Locals } from "../middlware/middleware.js";
-import { Method } from "../router.js";
+import { Method } from "../router/router.js";
 import { ParsedParsers } from "../types/parser.js";
 import { Path } from "../types/path.js";
 import { Validators } from "../validate.js";

@@ -1,5 +1,5 @@
 import { BeforeFunction, JoinLocals, Locals } from "../middlware/middleware.js";
-import { Method } from "../router.js";
+import { Method } from "../router/router.js";
 import { EmptyObject, Prettify } from "../types/common.js";
 import { ParsedParsers } from "../types/parser.js";
 import { JoinPaths, Path } from "../types/path.js";

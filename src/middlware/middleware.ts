@@ -1,7 +1,7 @@
 import { Path } from "../types/path.js";
 import { Request } from "../request/request.js";
 import { Response } from "../response/response.js";
-import { Method } from "../router.js";
+import { Method } from "../router/router.js";
 import { ValidatorFunction, Validators, ValidatorType } from "../validate.js";
 import {
     DefaultOrParsedParams,

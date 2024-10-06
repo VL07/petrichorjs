@@ -1,6 +1,6 @@
 import { throwUnparseableError, UnparseableError } from "../error.js";
 import { Route } from "../route.js";
-import { Method } from "../router.js";
+import { Method } from "./router.js";
 import { ParserFunction } from "../types/parser.js";
 import { Path } from "../types/path.js";
 import { Router } from "./router.js";
@@ -75,6 +75,7 @@ class TrieRouterNode {
                   );
             node = dynamicRouteNode.routerNode;
         } else if (this.isWildcardSlug(slug)) {
+            console.log(slug, rest);
             if (rest) throw "Wildcard routes cannot be followed!";
 
             this.setWildcardRoute(slug, route);
@@ -286,7 +287,7 @@ class TrieRouterNode {
             );
             if (!success) continue;
 
-            const foundRoute = this.getRoute(rest, method);
+            const foundRoute = node.routerNode.getRoute(rest, method);
             if (foundRoute) {
                 return [
                     foundRoute[0],
@@ -314,7 +315,7 @@ class TrieRouterNode {
             );
             if (!success) continue;
 
-            const foundRoute = this.getRoute(rest, method);
+            const foundRoute = node.routerNode.getRoute(rest, method);
             if (foundRoute) {
                 return [
                     foundRoute[0],

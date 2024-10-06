@@ -1,4 +1,4 @@
-import { Method } from "../router.js";
+import { Method } from "../router/router.js";
 import { Path } from "../types/path.js";
 import { ResponseStream, StreamFunction } from "./responseStream.js";
 import http from "node:http";

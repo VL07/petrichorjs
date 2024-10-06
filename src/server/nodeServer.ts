@@ -3,14 +3,14 @@ import { Server, UseServerFunction, ServerOptions } from "./server.js";
 import http from "node:http";
 import { NodeRequest } from "../request/nodeRequest.js";
 import { NodeResponse } from "../response/nodeResponse.js";
-import { RouteGroup } from "../router.js";
 import { MiddlewareOrBefore } from "../middlware/middleware.js";
+import { Router } from "../router/router.js";
 
 export const useNodeServer: UseServerFunction = (
-    rootRouteGroup: RouteGroup,
+    router: Router,
     routerMiddleware: MiddlewareOrBefore[],
     options: ServerOptions
-) => new NodeServer(rootRouteGroup, routerMiddleware, options);
+) => new NodeServer(router, routerMiddleware, options);
 
 export class NodeServer extends Server {
     override listen(): never {

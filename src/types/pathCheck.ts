@@ -8,7 +8,9 @@ type PathErrors = {
     StartWithSlash: "ROUTES MUST START WITH A SLASH";
 };
 
-export type PathError = PathErrors[keyof PathErrors];
+export type PathError =
+    | PathErrors[keyof PathErrors]
+    | `${PathErrors[keyof PathErrors]} (${string})`;
 
 type ContainsOptional<T extends Path> = T extends `/${string}?${string}`
     ? true
@@ -72,10 +74,15 @@ type DynamicOnlyOptionalPath<T extends Path> =
  * invalid a string explaining the error will be returned. Else just the passed
  * generic will be.
  */
-export type CheckPath<T extends Path> = T extends "/" ? T : PathRecursive<T>;
+export type CheckPath<T extends Path> = T extends "/"
+    ? T
+    : PathRecursive<T> extends PathError
+      ? `${PathRecursive<T>} (${T})`
+      : PathRecursive<T>;
 
 /**
  * Used to give autocomplete suggestions on a path. Doesn't work currently.
+ *
  * @deprecated
  */
 export type AutocompletePath<T extends Path> =
