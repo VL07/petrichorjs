@@ -14,12 +14,17 @@ import { HttpError } from "../error.js";
 import { statusCodes } from "../response/statusCode.js";
 import { buildNextMiddlewareFunctions } from "../nextFunctionsBuilder.js";
 import { Router } from "../router/router.js";
+import {
+    BodyParserOptions,
+    defaultBodyParserOptions,
+} from "../request/bodyParser.js";
 
 export type Port = number;
 
 export interface ServerOptions {
     port: Port;
     host?: string;
+    bodyParserOptions?: Partial<BodyParserOptions>;
 }
 
 export type UseServerFunction = (
@@ -31,6 +36,7 @@ export type UseServerFunction = (
 export abstract class Server {
     protected readonly port: Port;
     protected readonly host: string;
+    protected readonly bodyParserOptions: BodyParserOptions;
 
     constructor(
         protected router: Router,
@@ -39,6 +45,9 @@ export abstract class Server {
     ) {
         this.port = options.port;
         this.host = options.host || "localhost";
+        this.bodyParserOptions = defaultBodyParserOptions(
+            options.bodyParserOptions || {}
+        );
     }
 
     abstract listen(): never;

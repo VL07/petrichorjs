@@ -3,6 +3,7 @@ import { Method } from "../router/router.js";
 import { ParsedParsers } from "../types/parser.js";
 import { Path } from "../types/path.js";
 import { Validators } from "../validate.js";
+import { BodyParser } from "./bodyParser.js";
 import { Cookies } from "./cookies.js";
 import { QueryParams } from "./queryParams.js";
 import { Request } from "./request.js";
@@ -26,10 +27,9 @@ export class NodeRequest<
     override contentType: string | undefined;
     override requestedPath: string;
 
-    private bodyCached: string | undefined;
-
     constructor(
         private readonly request: http.IncomingMessage,
+        private readonly bodyParser: BodyParser,
         params: P,
         locals: L,
         routerPath: R,
@@ -62,26 +62,7 @@ export class NodeRequest<
     }
 
     override async body(): Promise<string> {
-        if (this.requestBodyEnded) {
-            return this.bodyCached || "";
-        }
-
-        return new Promise((resolve, reject) => {
-            const chunks: Uint8Array[] = [];
-            this.request.on("data", (chunk) => {
-                chunks.push(chunk);
-            });
-
-            this.request.on("end", () => {
-                const chunksAsString = Buffer.concat(chunks).toString();
-                this.bodyCached = chunksAsString;
-                resolve(this.bodyCached);
-            });
-
-            this.request.on("error", (err) => {
-                reject(err);
-            });
-        });
+        return await this.bodyParser.body();
     }
 
     get requestBodyEnded(): boolean {

@@ -5,6 +5,7 @@ import { NodeRequest } from "../request/nodeRequest.js";
 import { NodeResponse } from "../response/nodeResponse.js";
 import { MiddlewareOrBefore } from "../middlware/middleware.js";
 import { Router } from "../router/router.js";
+import { NodeBodyParser } from "../request/nodeBodyParser.js";
 
 export const useNodeServer: UseServerFunction = (
     router: Router,
@@ -44,8 +45,11 @@ export class NodeServer extends Server {
         const route = routeAndParams ? routeAndParams[0] : undefined;
         const params = routeAndParams ? routeAndParams[1] : {};
 
+        const bodyParser = new NodeBodyParser(request, this.bodyParserOptions);
+
         const parsedRequest = new NodeRequest(
             request,
+            bodyParser,
             params,
             {},
             route?.path || null,
