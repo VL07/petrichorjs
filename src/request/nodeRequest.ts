@@ -3,7 +3,12 @@ import { Method } from "../router/router.js";
 import { ParsedParsers } from "../types/parser.js";
 import { Path } from "../types/path.js";
 import { Validators } from "../validate.js";
-import { BodyParser } from "./bodyParser.js";
+import {
+    BodyParser,
+    BodyParserContentType,
+    ParsedJsonBody,
+    ParsedTextBody,
+} from "./bodyParser.js";
 import { Cookies } from "./cookies.js";
 import { QueryParams } from "./queryParams.js";
 import { Request } from "./request.js";
@@ -61,8 +66,24 @@ export class NodeRequest<
         );
     }
 
-    override async body(): Promise<string> {
+    override async body(): Promise<unknown> {
         return await this.bodyParser.body();
+    }
+
+    override async text(): Promise<ParsedTextBody> {
+        if (this.bodyParser.contentType !== BodyParserContentType.Text) {
+            throw this.createInvalidContentTypeError();
+        }
+
+        return (await this.body()) as ParsedTextBody;
+    }
+
+    override async json(): Promise<ParsedJsonBody> {
+        if (this.bodyParser.contentType !== BodyParserContentType.Json) {
+            throw this.createInvalidContentTypeError();
+        }
+
+        return await this.body();
     }
 
     get requestBodyEnded(): boolean {

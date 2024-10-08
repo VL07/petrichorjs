@@ -1,8 +1,11 @@
+import { HttpError } from "../error.js";
 import { Locals } from "../middlware/middleware.js";
+import { statusCodes } from "../response/statusCode.js";
 import { Method } from "../router/router.js";
 import { ParsedParsers } from "../types/parser.js";
 import { Path } from "../types/path.js";
 import { Validators } from "../validate.js";
+import { ParsedJsonBody, ParsedTextBody } from "./bodyParser.js";
 import { Cookies } from "./cookies.js";
 import { QueryParams } from "./queryParams.js";
 
@@ -93,12 +96,41 @@ export abstract class Request<
 
     abstract get requestBodyEnded(): boolean;
 
-    abstract body(): Promise<string>;
+    /**
+     * Awaits the request body and parses it. The parsed body is not checked to
+     * match a specific type, unlike how {@link Request.text} or
+     * {@link Request.json} does it.
+     *
+     * @example
+     *     await request.body();
+     */
+    abstract body(): Promise<unknown>;
 
-    async json(): Promise<unknown> {
-        const body = await this.body();
+    /**
+     * Awaits and parses the request body, like {@link Request.body}, but in this
+     * case it also checks to make sure the request content type is of the right
+     * type.
+     *
+     * @example
+     *     const body = await request.text();
+     */
+    abstract text(): Promise<ParsedTextBody>;
 
-        return JSON.parse(body);
+    /**
+     * Awaits and parses the request body, like {@link Request.body}, but in this
+     * case it also checks to make sure the request content type is of the right
+     * type. It also parses the json to an object.
+     *
+     * @example
+     *     const body = await request.json();
+     */
+    abstract json(): Promise<ParsedJsonBody>;
+
+    protected createInvalidContentTypeError(): HttpError {
+        return new HttpError(
+            statusCodes.UnsupportedMediaType,
+            "Invalid content type!"
+        );
     }
 }
 

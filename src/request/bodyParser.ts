@@ -1,17 +1,51 @@
 import { HttpError } from "../error.js";
 import { statusCodes } from "../response/statusCode.js";
 
+export enum BodyParserContentType {
+    Text,
+    Json,
+}
+
 /** The options for body parsers */
 export type BodyParserOptions = {
-    /** Request body max size in bytes */
-    limit: number;
+    text: {
+        limit: number;
+        contentTypes: Set<string>;
+        encoding: BufferEncoding;
+    };
+    json: {
+        limit: number;
+        contentTypes: Set<string>;
+        encoding: BufferEncoding;
+        convertEmptyStringsToNull: boolean;
+    };
 };
+
+type ContentTypeOptions = BodyParserOptions[keyof BodyParserOptions];
+
+export type ParsedTextBody = string;
+export type ParsedJsonBody = unknown;
+
+export type ParsedRequestBody = ParsedTextBody | ParsedJsonBody;
 
 export function defaultBodyParserOptions(
     options: Partial<BodyParserOptions>
 ): BodyParserOptions {
     return {
-        limit: options.limit || 1000000,
+        text: {
+            limit: options.text?.limit || 1000000,
+            contentTypes:
+                options.text?.contentTypes ||
+                new Set(["text/plain", "text/html"]),
+            encoding: "utf-8",
+        },
+        json: {
+            limit: options.json?.limit || 1000000,
+            contentTypes:
+                options.json?.contentTypes || new Set(["application/json"]),
+            encoding: "utf-8",
+            convertEmptyStringsToNull: true,
+        },
     };
 }
 
@@ -20,14 +54,56 @@ export function defaultBodyParserOptions(
  * should also validate it.
  */
 export abstract class BodyParser {
-    constructor(protected options: BodyParserOptions) {}
+    readonly contentType: BodyParserContentType;
+    protected readonly contentTypeOptions: ContentTypeOptions;
 
-    abstract body(): Promise<string>;
+    protected parsedBody: ParsedRequestBody | undefined;
 
-    async json(): Promise<unknown> {
-        const body = await this.body();
+    constructor(
+        protected readonly options: BodyParserOptions,
+        contentTypeHeader: string | undefined
+    ) {
+        this.contentType = this.getRequestContentType(contentTypeHeader);
+        this.contentTypeOptions = this.getContentTypeOptions();
+    }
 
-        return JSON.parse(body);
+    protected abstract handleTextRequest(): Promise<ParsedTextBody>;
+    protected abstract handleJsonRequest(): Promise<ParsedJsonBody>;
+
+    async body(): Promise<ParsedRequestBody> {
+        if (this.parsedBody) return this.parsedBody;
+
+        switch (this.contentType) {
+            case BodyParserContentType.Text:
+                this.parsedBody = await this.handleTextRequest();
+                break;
+            case BodyParserContentType.Json:
+                this.parsedBody = await this.handleJsonRequest();
+                break;
+        }
+
+        return this.parsedBody;
+    }
+
+    protected getRequestContentType(
+        contentType: string | undefined
+    ): BodyParserContentType {
+        if (!contentType) return BodyParserContentType.Text;
+
+        if (this.options.json.contentTypes.has(contentType)) {
+            return BodyParserContentType.Json;
+        }
+
+        return BodyParserContentType.Text;
+    }
+
+    protected getContentTypeOptions(): ContentTypeOptions {
+        switch (this.contentType) {
+            case BodyParserContentType.Text:
+                return this.options.text;
+            case BodyParserContentType.Json:
+                return this.options.json;
+        }
     }
 
     protected createMissingContentLengthError(): HttpError {
